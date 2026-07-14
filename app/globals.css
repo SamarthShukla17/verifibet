@@ -72,3 +72,53 @@
     @apply bg-background text-foreground;
   }
 }
+
+/*
+ * @solana/wallet-adapter-react-ui ships hardcoded colors (no CSS vars of its
+ * own). These custom properties are ours, layered on top of its classes to
+ * pull the connect button / dropdown / modal into the dark slate + emerald
+ * navbar palette instead of the default Solana purple.
+ */
+:root {
+  --wallet-bg: 30 41 59; /* slate-800 */
+  --wallet-bg-hover: 51 65 85; /* slate-700 */
+  --wallet-border: 6 95 70; /* emerald-800 */
+  --wallet-accent: 16 185 129; /* emerald-500 */
+  --wallet-accent-hover: 52 211 153; /* emerald-400 */
+  --wallet-text: 110 231 183; /* emerald-300 */
+}
+
+.wallet-adapter-dropdown-list {
+  background: rgb(var(--wallet-bg));
+  border: 1px solid rgb(var(--wallet-border));
+}
+
+.wallet-adapter-dropdown-list-item {
+  background-color: rgb(var(--wallet-bg));
+  color: rgb(var(--wallet-text));
+}
+
+.wallet-adapter-dropdown-list-item:not([disabled]):hover {
+  background-color: rgb(var(--wallet-bg-hover));
+}
+
+.wallet-adapter-modal-wrapper {
+  background: rgb(var(--wallet-bg));
+}
+
+.wallet-adapter-modal-button-close {
+  background: rgb(var(--wallet-bg-hover));
+}
+
+.wallet-adapter-modal-title {
+  color: rgb(var(--wallet-text));
+}
+
+.wallet-adapter-modal-list .wallet-adapter-button {
+  background-color: rgb(var(--wallet-bg));
+  color: rgb(var(--wallet-text));
+}
+
+.wallet-adapter-modal-list .wallet-adapter-button:not([disabled]):hover {
+  background-color: rgb(var(--wallet-bg-hover));
+}
