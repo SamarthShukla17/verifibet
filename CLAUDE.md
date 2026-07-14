@@ -63,6 +63,15 @@ not TxLINE's.
   side. Don't re-derive seeds inline elsewhere.
 - **Time** is unix seconds (`i64`/`number`), not milliseconds, matching
   on-chain clock semantics.
+- **Domain types** live in `lib/types.ts` — the single source of truth for
+  `Fixture`, `MarketStatus`, `Outcome`, `OddsSnapshot`, `ScoreEvent`,
+  `Receipt`. Don't redeclare these shapes elsewhere.
+- **Outcome encoding** is `0 = home, 1 = draw, 2 = away`, matching the
+  on-chain program's resolved-outcome representation exactly.
+- **Odds and implied probabilities are display data, not money.**
+  `OddsSnapshot.home/draw/away` and `impliedPct` are plain `number` (decimal
+  odds / percentages) — the bigint/never-floats rule applies to settlement
+  amounts (`betAmount`, `payout`), not to TxLINE-sourced odds data.
 
 ## Key commands
 
