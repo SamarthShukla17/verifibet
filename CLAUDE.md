@@ -153,10 +153,24 @@ fetch 6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J -o anchor/idls/txline.json
 - `scripts/txline-subscribe.ts` (`pnpm txline:subscribe`) runs the full
   ensure-ATA → subscribe(serviceLevelId, weeks) flow and persists
   `{ txSig, serviceLevelId, weeks, wallet }` to `.txline-subscription.json`
-  (gitignored). It does not perform the off-chain JWT/activation flow
-  (`/auth/guest/start`, `/api/token/activate`) — that's a separate step
-  documented in `documentation/programs/devnet.mdx` in the same repo, for
-  whenever `app/api/*` routes need a real API token.
+  (gitignored).
+- `lib/txline/http.ts` (`txlineFetch`) and `lib/txline/auth.ts`
+  (`getGuestJwt`, `signActivation`, `activateToken`) implement the off-chain
+  activation flow from `documentation/programs/devnet.mdx`:
+  `POST /auth/guest/start` (no auth) → sign
+  `${txSig}:${leagues.join(",")}:${jwt}` with the subscribing wallet → `POST
+  /api/token/activate` → API token. **The wallet signature is base64, not
+  base58** — confirmed against TxLINE's OpenAPI spec and its own reference
+  example (`github.com/txodds/tx-on-chain`), despite base58 being the more
+  common Solana convention. `/api/token/activate` returns the token as raw
+  `text/plain`, not JSON. `scripts/txline-activate.ts`
+  (`pnpm txline:activate`) chains this against `.txline-subscription.json`
+  and upserts `TXLINE_JWT`/`TXLINE_API_TOKEN` into `.env.local` — it only
+  writes on success, so a failed rerun (e.g. re-activating an already-used
+  `txSig`, which 403s) never clobbers a working token. Both modules are
+  server-only *by convention*, not via the `server-only` package — that
+  package throws unconditionally outside Next's bundler, which would break
+  these same CLI scripts.
 
 ## Session rule
 
