@@ -1,5 +1,14 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Plan notes
+
+- Devnet demo uses a 6dp mock USDC mint (`NEXT_PUBLIC_USDC_MINT` in
+  `.env.local`), not Circle's real devnet USDC — Circle's faucet
+  (faucet.circle.com) is reCAPTCHA-gated (can't be scripted) and caps
+  requests at 20 USDC per network every 2 hours, nowhere near enough to fund
+  betting tests. The program pins whatever mint each market is initialized
+  with, so this is a drop-in swap and nothing else changes.
+
 ## Getting Started
 
 First, run the development server:

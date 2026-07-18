@@ -4,7 +4,9 @@ export const CONFIG = {
     apiOrigin: "https://txline-dev.txodds.com",
     txlineProgramId: "6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J",
     txlTokenMint: "4Zao8ocPhmMgq7PdsYWyxvqySMGx7xb9cMftPMkEokRG",
-    usdcMint: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+    usdcMint:
+      process.env.NEXT_PUBLIC_USDC_MINT ??
+      "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
   },
   mainnet: {
     rpcUrl: "https://api.mainnet-beta.solana.com",
