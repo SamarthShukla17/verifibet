@@ -92,6 +92,7 @@
 use anchor_lang::prelude::*;
 
 use crate::errors::VerifibetError;
+use crate::instructions::common;
 use crate::state::{Market, MarketStatus, MARKET_SEED};
 use crate::txline_validate::{
     self,
@@ -192,13 +193,7 @@ pub fn resolve_market(
     stat_home: StatTerm,
     stat_away: StatTerm,
 ) -> Result<()> {
-    require!(
-        matches!(
-            ctx.accounts.market.status,
-            MarketStatus::Open | MarketStatus::Locked
-        ),
-        VerifibetError::MarketNotOpen
-    );
+    common::require_open_or_locked(ctx.accounts.market.status)?;
     require!(
         Clock::get()?.unix_timestamp > ctx.accounts.market.kickoff_ts,
         VerifibetError::KickoffNotPassed
@@ -338,13 +333,7 @@ pub fn resolve_market_attested(
     outcome: u8,
     proof_hash: [u8; 32],
 ) -> Result<()> {
-    require!(
-        matches!(
-            ctx.accounts.market.status,
-            MarketStatus::Open | MarketStatus::Locked
-        ),
-        VerifibetError::MarketNotOpen
-    );
+    common::require_open_or_locked(ctx.accounts.market.status)?;
     require!(
         Clock::get()?.unix_timestamp > ctx.accounts.market.kickoff_ts,
         VerifibetError::KickoffNotPassed

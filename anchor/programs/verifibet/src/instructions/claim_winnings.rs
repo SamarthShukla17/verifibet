@@ -26,9 +26,10 @@
 //! needing to also reason about a fee schedule.
 
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Mint, Token, TokenAccount, TransferChecked};
+use anchor_spl::token::{Mint, Token, TokenAccount};
 
 use crate::errors::VerifibetError;
+use crate::instructions::common;
 use crate::state::{Bet, Market, MarketStatus, BET_SEED, MARKET_SEED};
 
 #[derive(Accounts)]
@@ -133,23 +134,13 @@ pub fn claim_winnings(ctx: Context<ClaimWinnings>) -> Result<()> {
     // still see `claimed == false` and pay out twice.
     ctx.accounts.bet.claimed = true;
 
-    let fixture_id_bytes = ctx.accounts.market.fixture_id.to_le_bytes();
-    let bump = ctx.accounts.market.bump;
-    let signer_seeds: &[&[&[u8]]] = &[&[MARKET_SEED, &fixture_id_bytes, &[bump]]];
-
-    token::transfer_checked(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            TransferChecked {
-                from: ctx.accounts.vault.to_account_info(),
-                mint: ctx.accounts.usdc_mint.to_account_info(),
-                to: ctx.accounts.user_usdc.to_account_info(),
-                authority: ctx.accounts.market.to_account_info(),
-            },
-            signer_seeds,
-        ),
+    common::transfer_from_vault(
+        &ctx.accounts.market,
+        &ctx.accounts.vault,
+        &ctx.accounts.user_usdc,
+        &ctx.accounts.usdc_mint,
+        &ctx.accounts.token_program,
         payout,
-        ctx.accounts.usdc_mint.decimals,
     )?;
 
     emit!(WinningsClaimed {

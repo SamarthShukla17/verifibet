@@ -6,7 +6,7 @@ mod state;
 
 use instructions::*;
 
-declare_id!("21yiVGnTjDN7vCyk6hBotqCnVwxnVVQj3PNGdzfxqK4Z");
+declare_id!("ChjuDZUnA5P9za6YjuMe6KYzwuDb6Y4mGacRWMvHCBPR");
 
 // Typed CPI bindings for TxLINE's `validate_stat`, generated from
 // anchor/idls/txline_validate.json — a trimmed copy of the fetched devnet
@@ -90,6 +90,14 @@ macro_rules! verifibet_program {
 
             pub fn claim_winnings(ctx: Context<ClaimWinnings>) -> Result<()> {
                 instructions::claim_winnings(ctx)
+            }
+
+            pub fn void_market(ctx: Context<VoidMarket>) -> Result<()> {
+                instructions::void_market(ctx)
+            }
+
+            pub fn claim_refund(ctx: Context<ClaimRefund>) -> Result<()> {
+                instructions::claim_refund(ctx)
             }
 
             $($extra)*
