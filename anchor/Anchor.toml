@@ -5,7 +5,7 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-verifibet = "6UT3c81UNdkqxnMHBHHggjVXmb7eeonTmeYfeZ3fLc73"
+verifibet = "9TVvcDzgfa1Apy5uAeaUtZkGAxgmAfTTQ5xWDbQdhs9C"
 
 [registry]
 url = "https://api.apr.dev"

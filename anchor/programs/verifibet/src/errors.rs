@@ -30,4 +30,6 @@ pub enum VerifibetError {
     MintMismatch,
     #[msg("Team name exceeds 24 bytes")]
     NameTooLong,
+    #[msg("Stat proof does not represent a valid full-time result comparison")]
+    InvalidStatProof,
 }

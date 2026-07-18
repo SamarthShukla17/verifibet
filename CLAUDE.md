@@ -227,6 +227,67 @@ in the on-chain `pricing_matrix`, confirmed directly) — the 60-second
 Service-Level-1 delay mentioned in TxODDS's own marketing copy is a
 mainnet-only characteristic. Don't assume devnet data lags by 60s.
 
+## Resolving markets via TxLINE CPI
+
+`instructions/resolve_market.rs` (`resolve_market`, `lock_market`) CPIs into
+TxLINE's `validate_stat` — resolution is impossible unless that CPI returns
+`Ok(())`; there is no code path that marks a market `Resolved` without it.
+Its module doc comment has the full design (sequence diagram, why
+`resolve_market`'s args aren't a flat `stat_value`/`merkle_proof`, the
+`GreaterThan`/`EqualTo`/`LessThan`-derived-from-`outcome` predicate
+construction, and the one trust boundary that's still real: `ScoreStat.key`
+is opaque, so nothing on-chain proves the keeper picked the *right* stat
+keys for home/away, only that whatever keys they picked are real). Three
+real `declare_program!`/`#[program]` bugs in Anchor 0.30.1 were hit and
+worked around while building it, all confirmed with `cargo expand` rather
+than guessed:
+
+- **`declare_program!` chokes on the full `anchor/idls/txline.json`.**
+  `anchor/idls/txline_validate.json` is a separate, trimmed copy (just
+  `validate_stat` + its argument types) used only for
+  `declare_program!(txline_validate)` in `lib.rs` — `anchor/idls/txline.json`
+  itself is untouched, `scripts/txline-*.ts` still read the full IDL for the
+  `subscribe` flow. Two independent bugs made the full IDL unusable here:
+  (1) its `expose_structs` instruction has zero accounts, and
+  `declare_program!` matches "composite" (nested) account groups
+  *structurally* (comparing account lists) rather than by name — any other
+  instruction with an empty nested accounts group collides with
+  `expose_structs` and fails with "struct takes 0 lifetime arguments but 1
+  lifetime argument was supplied"; (2) its `constants` include two
+  `pubkey`-typed values (`TXLINE_MINT`, `USDT_MINT`) whose raw base58 string
+  `declare_program!` emits as a bare Rust expression instead of wrapping in
+  `pubkey!(...)`, which doesn't compile either. Neither bug is reachable
+  once trimmed to just `validate_stat` (confirmed by bisecting with
+  `cargo expand`).
+- **`#[program]` doesn't respect per-method `#[cfg(...)]`.** Anchor 0.30.1's
+  `#[program]` macro parses every `pub fn` inside the `mod` unconditionally
+  when generating its own auxiliary code (client-accounts glue, dispatch),
+  regardless of a `#[cfg(feature = ...)]` on an individual method — the
+  method itself correctly disappears from the binary, but `#[program]`'s
+  generated glue still references its now-nonexistent accounts type and
+  fails to compile. `lib.rs` works around this with a `macro_rules!`
+  (`verifibet_program!`) wrapping the whole `#[program] pub mod verifibet`
+  body, invoked once with the extra method appended and once without —
+  `macro_rules!` expansion happens as its own step before `#[program]` ever
+  sees the module, so both invocations produce a fully resolved module
+  either way. This is also why `resolve_market_attested`'s accounts struct
+  in `resolve_market.rs` isn't nested in its own `pub mod attested { ... }`:
+  `#[program]` derives its expected `__client_accounts_*` module name from
+  the *first* path segment of the `Context<...>` type argument, not the
+  last, so `Context<attested::ResolveMarketAttested>` looked for
+  `__client_accounts_attested` instead of
+  `__client_accounts_resolve_market_attested` and failed to compile.
+  Flattening it to a bare, directly re-exported identifier (same pattern as
+  every other instruction) sidesteps that too.
+- **A fully-qualified external-program type path breaks only under
+  `idl-build`.** `Program<'info, txline_validate::program::Txoracle>` (or
+  even `Program<'info, crate::txline_validate::program::Txoracle>`) compiles
+  fine under a normal build but fails with "use of undeclared type
+  `Txoracle`" specifically when compiling with `--features idl-build` (i.e.
+  inside `anchor/scripts/build-idl.sh`) — importing the bare name
+  (`use crate::txline_validate::program::Txoracle;` then `Program<'info,
+  Txoracle>`) avoids it.
+
 ## Session rule
 
 Every session ends with a commit and a 30-second screen recording dropped

@@ -1,5 +1,5 @@
 {
-  "address": "6UT3c81UNdkqxnMHBHHggjVXmb7eeonTmeYfeZ3fLc73",
+  "address": "9TVvcDzgfa1Apy5uAeaUtZkGAxgmAfTTQ5xWDbQdhs9C",
   "metadata": {
     "name": "verifibet",
     "version": "0.1.0",
@@ -389,6 +389,172 @@
           "type": "u64"
         }
       ]
+    },
+    {
+      "name": "lock_market",
+      "discriminator": [
+        107,
+        8,
+        184,
+        91,
+        223,
+        13,
+        180,
+        38
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "market",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.fixture_id",
+                "account": "Market"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "resolve_market",
+      "discriminator": [
+        155,
+        23,
+        80,
+        173,
+        46,
+        74,
+        23,
+        239
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "market",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.fixture_id",
+                "account": "Market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "txline_program",
+          "docs": [
+            "`Program<'info, T>` already enforces this is exactly TxLINE's",
+            "deployed program (`txline_validate::ID`, embedded from the IDL's",
+            "own `address` field) \u2014 no other program can be substituted here."
+          ],
+          "address": "6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J"
+        },
+        {
+          "name": "daily_scores_merkle_roots",
+          "docs": [
+            "rather than a typed `Account<'info, _>` \u2014 we have no (and shouldn't",
+            "invent any) view into its internal layout; `validate_stat` is the",
+            "only thing that reads it. What *is* checked here: the `seeds` +",
+            "`seeds::program` constraint below re-derives this as TxLINE's daily",
+            "Merkle-root PDA for the epoch day implied by `ts`, rather than",
+            "trusting whatever account the caller passes \u2014 TxLINE's own",
+            "`validate_stat` independently re-checks this PDA too, but this",
+            "closes the gap before a mismatched-day account even reaches the",
+            "CPI. `validate_stat`'s own IDL entry has exactly this one account,",
+            "confirmed via `cargo expand` \u2014 not \"config/root PDAs\" plural, just",
+            "this one."
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "outcome",
+          "type": "u8"
+        },
+        {
+          "name": "ts",
+          "type": "i64"
+        },
+        {
+          "name": "fixture_summary",
+          "type": {
+            "defined": {
+              "name": "verifibet::txline_validate::types::ScoresBatchSummary"
+            }
+          }
+        },
+        {
+          "name": "fixture_proof",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "verifibet::txline_validate::types::ProofNode"
+              }
+            }
+          }
+        },
+        {
+          "name": "main_tree_proof",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "verifibet::txline_validate::types::ProofNode"
+              }
+            }
+          }
+        },
+        {
+          "name": "stat_home",
+          "type": {
+            "defined": {
+              "name": "verifibet::txline_validate::types::StatTerm"
+            }
+          }
+        },
+        {
+          "name": "stat_away",
+          "type": {
+            "defined": {
+              "name": "verifibet::txline_validate::types::StatTerm"
+            }
+          }
+        }
+      ]
     }
   ],
   "accounts": [
@@ -594,23 +760,136 @@
       }
     },
     {
-      "name": "verifibet::instructions::initialize_market::MarketInitialized",
+      "name": "verifibet::txline_validate::types::ProofNode",
       "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "is_right_sibling",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "verifibet::txline_validate::types::ScoreStat",
+      "docs": [
+        "The on-chain representation of a single, provable key-value statistic.",
+        "This is the leaf of the inner-most Merkle tree."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "key",
+            "type": "u32"
+          },
+          {
+            "name": "value",
+            "type": "i32"
+          },
+          {
+            "name": "period",
+            "type": "i32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "verifibet::txline_validate::types::ScoresBatchSummary",
+      "docs": [
+        "The summary for a single fixture's scores events within a 5-minute batch.",
+        "This contains the root of the sub-tree of all events for that fixture."
+      ],
+      "type": {
+        "kind": "struct",
         "fields": [
           {
             "name": "fixture_id",
-            "type": "u64"
+            "type": "i64"
           },
           {
-            "name": "market",
-            "type": "pubkey"
+            "name": "update_stats",
+            "type": {
+              "defined": {
+                "name": "verifibet::txline_validate::types::ScoresUpdateStats"
+              }
+            }
           },
           {
-            "name": "kickoff_ts",
+            "name": "events_sub_tree_root",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "verifibet::txline_validate::types::ScoresUpdateStats",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "update_count",
+            "type": "i32"
+          },
+          {
+            "name": "min_timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "max_timestamp",
             "type": "i64"
           }
-        ],
-        "kind": "struct"
+        ]
+      }
+    },
+    {
+      "name": "verifibet::txline_validate::types::StatTerm",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "stat_to_prove",
+            "type": {
+              "defined": {
+                "name": "verifibet::txline_validate::types::ScoreStat"
+              }
+            }
+          },
+          {
+            "name": "event_stat_root",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "stat_proof",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "verifibet::txline_validate::types::ProofNode"
+                }
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -641,6 +920,55 @@
                 3
               ]
             }
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "verifibet::instructions::resolve_market::MarketResolved",
+      "type": {
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "fixture_id",
+            "type": "u64"
+          },
+          {
+            "name": "outcome",
+            "type": "u8"
+          },
+          {
+            "name": "proof_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "verifibet::instructions::initialize_market::MarketInitialized",
+      "type": {
+        "fields": [
+          {
+            "name": "fixture_id",
+            "type": "u64"
+          },
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "kickoff_ts",
+            "type": "i64"
           }
         ],
         "kind": "struct"
@@ -718,22 +1046,14 @@
       "code": 6013,
       "name": "NameTooLong",
       "msg": "Team name exceeds 24 bytes"
+    },
+    {
+      "code": 6014,
+      "name": "InvalidStatProof",
+      "msg": "Stat proof does not represent a valid full-time result comparison"
     }
   ],
   "events": [
-    {
-      "discriminator": [
-        134,
-        160,
-        122,
-        87,
-        50,
-        3,
-        255,
-        81
-      ],
-      "name": "verifibet::instructions::initialize_market::MarketInitialized"
-    },
     {
       "discriminator": [
         88,
@@ -746,6 +1066,32 @@
         0
       ],
       "name": "verifibet::instructions::place_bet::BetPlaced"
+    },
+    {
+      "discriminator": [
+        89,
+        67,
+        230,
+        95,
+        143,
+        106,
+        199,
+        202
+      ],
+      "name": "verifibet::instructions::resolve_market::MarketResolved"
+    },
+    {
+      "discriminator": [
+        134,
+        160,
+        122,
+        87,
+        50,
+        3,
+        255,
+        81
+      ],
+      "name": "verifibet::instructions::initialize_market::MarketInitialized"
     }
   ]
 }
