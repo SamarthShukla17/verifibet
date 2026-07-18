@@ -28,4 +28,6 @@ pub enum VerifibetError {
     TooEarlyToVoid,
     #[msg("Token account mint does not match the market's usdc_mint")]
     MintMismatch,
+    #[msg("Team name exceeds 24 bytes")]
+    NameTooLong,
 }

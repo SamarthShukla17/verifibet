@@ -1,5 +1,5 @@
 {
-  "address": "9ybGXhWNp5SbPkxiiewwbXXU2iLsXApbDBiLTVrbomzM",
+  "address": "4jBNaT9zGYE6j3wbiLEsJAP9twbszxYiMnZxsd7ZjRKt",
   "metadata": {
     "name": "verifibet",
     "version": "0.1.0",
@@ -21,6 +21,445 @@
       ],
       "accounts": [],
       "args": []
+    },
+    {
+      "name": "initialize_market",
+      "discriminator": [
+        35,
+        35,
+        189,
+        193,
+        155,
+        48,
+        170,
+        203
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Keeper wallet creating the market. Pays for both the market account",
+            "and the vault's rent here, so the first bettor never has to."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "fixture_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "usdc_mint",
+          "docs": [
+            "Pinned into `market.usdc_mint` below. Every later token-moving",
+            "instruction re-checks its own mint account against that field",
+            "rather than trusting whatever's passed in \u2014 see",
+            "`VerifibetError::MintMismatch`."
+          ]
+        },
+        {
+          "name": "vault",
+          "docs": [
+            "The market's escrow. Always the canonical associated token account",
+            "of `market` for `usdc_mint` \u2014 created here (not lazily on the first",
+            "bet) so the first bettor doesn't pay the vault's rent, and so there",
+            "is exactly one valid vault address per market by construction."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "usdc_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "fixture_id",
+          "type": "u64"
+        },
+        {
+          "name": "home",
+          "type": "string"
+        },
+        {
+          "name": "away",
+          "type": "string"
+        },
+        {
+          "name": "kickoff_ts",
+          "type": "i64"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "verifibet::state::Market",
+      "discriminator": [
+        219,
+        190,
+        213,
+        55,
+        0,
+        227,
+        198,
+        154
+      ]
+    }
+  ],
+  "types": [
+    {
+      "name": "verifibet::state::Market",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "docs": [
+              "Keeper authority allowed to lock/resolve/void this market. Checked",
+              "per-instruction against this field \u2014 never assumed to be a fixed,",
+              "program-wide admin key."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "usdc_mint",
+            "docs": [
+              "USDC mint pinned at `initialize_market`. Every token-moving",
+              "instruction re-checks accounts against this field rather than",
+              "trusting whatever mint is passed in \u2014 see `VerifibetError::MintMismatch`."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "fixture_id",
+            "docs": [
+              "TxLINE fixture id. Also the seed that derives this account's own",
+              "address, so it's redundant with the PDA itself but kept as a field",
+              "for cheap reads without re-deriving."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "home",
+            "type": "string"
+          },
+          {
+            "name": "away",
+            "type": "string"
+          },
+          {
+            "name": "kickoff_ts",
+            "type": "i64"
+          },
+          {
+            "name": "status",
+            "docs": [
+              "Open, Locked, Resolved, Voided."
+            ],
+            "type": {
+              "defined": {
+                "name": "verifibet::state::MarketStatus"
+              }
+            }
+          },
+          {
+            "name": "outcome",
+            "docs": [
+              "0 = home, 1 = draw, 2 = away, 255 = unset (`OUTCOME_UNSET`) \u2014",
+              "matches the encoding documented in CLAUDE.md / `lib/types.ts`'s",
+              "`Outcome`."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "pools",
+            "docs": [
+              "Total USDC staked per outcome index (0/1/2), base units."
+            ],
+            "type": {
+              "array": [
+                "u64",
+                3
+              ]
+            }
+          },
+          {
+            "name": "total_pool",
+            "docs": [
+              "`pools[0] + pools[1] + pools[2]`, kept redundantly so the frontend",
+              "doesn't need to sum on every read. Instructions that mutate `pools`",
+              "must keep this in sync in the same transaction."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "proof_hash",
+            "docs": [
+              "Settlement proof (e.g. a TxLINE Merkle root) backing the resolved",
+              "outcome. All-zero while unresolved."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "resolved_at",
+            "docs": [
+              "Unix seconds the market was resolved at; `0` while unresolved."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "verifibet::state::MarketStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Open"
+          },
+          {
+            "name": "Locked"
+          },
+          {
+            "name": "Resolved"
+          },
+          {
+            "name": "Voided"
+          }
+        ]
+      }
+    },
+    {
+      "name": "verifibet::instructions::initialize_market::MarketInitialized",
+      "type": {
+        "fields": [
+          {
+            "name": "fixture_id",
+            "type": "u64"
+          },
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "kickoff_ts",
+            "type": "i64"
+          }
+        ],
+        "kind": "struct"
+      }
+    }
+  ],
+  "constants": [],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "MarketNotOpen",
+      "msg": "Market is not open"
+    },
+    {
+      "code": 6001,
+      "name": "KickoffPassed",
+      "msg": "Kickoff has already passed"
+    },
+    {
+      "code": 6002,
+      "name": "KickoffNotPassed",
+      "msg": "Kickoff has not passed yet"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidOutcome",
+      "msg": "Outcome must be 0 (home), 1 (draw), or 2 (away)"
+    },
+    {
+      "code": 6004,
+      "name": "MarketNotResolved",
+      "msg": "Market is not resolved"
+    },
+    {
+      "code": 6005,
+      "name": "MarketNotVoided",
+      "msg": "Market is not voided"
+    },
+    {
+      "code": 6006,
+      "name": "NotWinningBet",
+      "msg": "Bet did not win"
+    },
+    {
+      "code": 6007,
+      "name": "AlreadyClaimed",
+      "msg": "Bet has already been claimed"
+    },
+    {
+      "code": 6008,
+      "name": "Unauthorized",
+      "msg": "Signer is not authorized for this action"
+    },
+    {
+      "code": 6009,
+      "name": "ZeroAmount",
+      "msg": "Amount must be greater than zero"
+    },
+    {
+      "code": 6010,
+      "name": "MathOverflow",
+      "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6011,
+      "name": "TooEarlyToVoid",
+      "msg": "Too early to void this market"
+    },
+    {
+      "code": 6012,
+      "name": "MintMismatch",
+      "msg": "Token account mint does not match the market's usdc_mint"
+    },
+    {
+      "code": 6013,
+      "name": "NameTooLong",
+      "msg": "Team name exceeds 24 bytes"
+    }
+  ],
+  "events": [
+    {
+      "discriminator": [
+        134,
+        160,
+        122,
+        87,
+        50,
+        3,
+        255,
+        81
+      ],
+      "name": "verifibet::instructions::initialize_market::MarketInitialized"
     }
   ]
 }

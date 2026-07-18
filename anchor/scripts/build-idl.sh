@@ -38,19 +38,43 @@ mkdir -p target/idl target/types
 ) >"$RAW_OUT" 2>&1 || { cat "$RAW_OUT"; exit 1; }
 
 python3 - "$RAW_OUT" "$OUT_JSON" <<'PY'
+# Mirrors the section-merging algorithm in anchor-lang-idl's own
+# `build()` (crates.io anchor-lang-idl 0.1.4, src/build.rs) — cargo test's
+# stdout carries the IDL in separate address/const/event/errors/program
+# marker blocks, not one JSON blob. An earlier version of this script only
+# extracted "address" and "program", which silently dropped errors and
+# events (both real sections the program has) from every IDL this produced.
 import re, sys, json
 
 raw_path, out_path = sys.argv[1], sys.argv[2]
 text = open(raw_path).read()
 
-addr_match = re.search(r'--- IDL begin address ---\n(.*?)\n--- IDL end address ---', text, re.S)
-prog_match = re.search(r'--- IDL begin program ---\n(.*?)\n--- IDL end program ---', text, re.S)
-if not addr_match or not prog_match:
-    sys.exit(f"Could not find IDL markers in build output:\n{text}")
 
-address = json.loads(json.loads(addr_match.group(1).strip()))
-idl = json.loads(prog_match.group(1))
-idl["address"] = address
+def blocks(tag):
+    return re.findall(
+        rf'--- IDL begin {tag} ---\n(.*?)\n--- IDL end {tag} ---', text, re.S
+    )
+
+
+addr_blocks = blocks("address")
+prog_blocks = blocks("program")
+if not addr_blocks or not prog_blocks:
+    sys.exit(f"Could not find IDL address/program markers in build output:\n{text}")
+
+idl = json.loads(prog_blocks[-1])
+idl["address"] = json.loads(json.loads(addr_blocks[-1].strip()))
+idl["constants"] = [json.loads(b) for b in blocks("const")]
+idl["errors"] = json.loads(blocks("errors")[0]) if blocks("errors") else []
+
+types_by_name = {t["name"]: t for t in idl.get("types", [])}
+events = []
+for b in blocks("event"):
+    parsed = json.loads(b)
+    events.append(parsed["event"])
+    for t in parsed["types"]:
+        types_by_name.setdefault(t["name"], t)
+idl["events"] = events
+idl["types"] = list(types_by_name.values())
 
 with open(out_path, "w") as f:
     json.dump(idl, f, indent=2)

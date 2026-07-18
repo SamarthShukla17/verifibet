@@ -117,7 +117,29 @@ __anchor_private_print_idl --features idl-build` invocation anchor uses
 internally, but with plain `RUSTFLAGS=-A warnings` (no `semver_exempt` cfg),
 and parses the resulting IDL out of the test's stdout markers itself. This
 works reliably; the only loss is semver_exempt-only cross-file type-alias
-resolution in the IDL, which this program doesn't use.
+resolution in the IDL, which this program doesn't use. The test's stdout
+carries the IDL in separate `address`/`const`/`event`/`errors`/`program`
+marker blocks (mirroring `anchor-lang-idl`'s own merge logic in
+`build.rs`) — the script merges all five; an earlier version only handled
+`address`/`program` and silently produced IDLs with empty `errors`/`events`
+arrays even though the program had both. If a freshly generated
+`target/idl/verifibet.json` is ever missing errors or events that exist in
+source, check this script before assuming the Rust side is wrong.
+
+Building with the `idl-build` feature requires `"anchor-spl/idl-build"` in
+this crate's own `idl-build` feature (not just `"anchor-lang/idl-build"`)
+as soon as any instruction's `Accounts` struct uses an `anchor_spl` type
+(`Mint`, `TokenAccount`, ...) — otherwise those types don't implement the
+`IdlBuild`/`Discriminator` traits the `#[derive(Accounts)]` macro needs
+under `idl-build`, and the IDL step fails with `no function or associated
+item named 'create_type' found`. `anchor-spl/idl-build`, in turn, only
+compiles if the `token_2022` feature is *also* enabled: anchor-spl
+0.30.1's own `idl_build.rs` unconditionally references
+`crate::token_interface::{Mint,TokenAccount}`, which only exist behind
+`token_2022`, regardless of whether the program actually uses Token-2022
+(it doesn't — VERIFIBET's USDC is classic SPL Token throughout). So
+`anchor-spl`'s feature list here is `["associated_token", "mint", "token",
+"token_2022"]` even though `token_2022` itself is otherwise unused.
 
 Separately, the on-chain `.so` build needs `--tools-version v1.52`: the
 solana-cli's default bundled platform-tools (v1.41, rustc 1.75.0) ships a
