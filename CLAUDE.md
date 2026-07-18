@@ -130,6 +130,34 @@ pins the *host* toolchain to the matching 1.89.0 for consistency, though it
 is not honored by the IDL step for the same CLI-binary reason above (verify
 with `rustc --version` from within `anchor/` if this ever needs re-diagnosing).
 
+## TxLINE on-chain subscribe
+
+`anchor/idls/txline.json` is TxLINE's devnet IDL, fetched via `anchor idl
+fetch 6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J -o anchor/idls/txline.json
+--provider.cluster devnet`. It does not carry PDA seeds (no `pda` key on the
+`subscribe` accounts) — those came from TxODDS's own example at
+[`github.com/txodds/tx-on-chain`](https://github.com/txodds/tx-on-chain)
+(`examples/devnet/common/users.ts`, `documentation/programs/devnet.mdx`,
+`documentation/subscription-tiers.mdx`):
+
+- `pricing_matrix` PDA: seeds `["pricing_matrix"]`.
+- `token_treasury_v2` PDA: seeds `["token_treasury_v2"]` (named
+  `tokenTreasuryPda` in the `subscribe` accounts).
+- The TxL mint is **Token-2022**, not classic SPL Token — the user ATA,
+  `tokenTreasuryVault` (an ATA owned by the treasury PDA), and the
+  `tokenProgram` account in `subscribe` all use `TOKEN_2022_PROGRAM_ID`.
+- Devnet Service Level 1 (World Cup & Int'l Friendlies) is priced at 0
+  TxL/week — confirmed on-chain, not just from docs. The IDL's only devnet
+  faucet instruction, `request_devnet_faucet`, mints **USDT**, not TxL; there
+  is no TxL-specific faucet, and the free tier doesn't need one.
+- `scripts/txline-subscribe.ts` (`pnpm txline:subscribe`) runs the full
+  ensure-ATA → subscribe(serviceLevelId, weeks) flow and persists
+  `{ txSig, serviceLevelId, weeks, wallet }` to `.txline-subscription.json`
+  (gitignored). It does not perform the off-chain JWT/activation flow
+  (`/auth/guest/start`, `/api/token/activate`) — that's a separate step
+  documented in `documentation/programs/devnet.mdx` in the same repo, for
+  whenever `app/api/*` routes need a real API token.
+
 ## Session rule
 
 Every session ends with a commit and a 30-second screen recording dropped
