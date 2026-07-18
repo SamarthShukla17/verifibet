@@ -6,7 +6,7 @@ mod state;
 
 use instructions::*;
 
-declare_id!("9TVvcDzgfa1Apy5uAeaUtZkGAxgmAfTTQ5xWDbQdhs9C");
+declare_id!("21yiVGnTjDN7vCyk6hBotqCnVwxnVVQj3PNGdzfxqK4Z");
 
 // Typed CPI bindings for TxLINE's `validate_stat`, generated from
 // anchor/idls/txline_validate.json — a trimmed copy of the fetched devnet
@@ -86,6 +86,10 @@ macro_rules! verifibet_program {
                     stat_home,
                     stat_away,
                 )
+            }
+
+            pub fn claim_winnings(ctx: Context<ClaimWinnings>) -> Result<()> {
+                instructions::claim_winnings(ctx)
             }
 
             $($extra)*

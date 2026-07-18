@@ -1,5 +1,5 @@
 {
-  "address": "9TVvcDzgfa1Apy5uAeaUtZkGAxgmAfTTQ5xWDbQdhs9C",
+  "address": "21yiVGnTjDN7vCyk6hBotqCnVwxnVVQj3PNGdzfxqK4Z",
   "metadata": {
     "name": "verifibet",
     "version": "0.1.0",
@@ -555,6 +555,180 @@
           }
         }
       ]
+    },
+    {
+      "name": "claim_winnings",
+      "discriminator": [
+        161,
+        215,
+        24,
+        59,
+        14,
+        236,
+        242,
+        221
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "signer": true,
+          "relations": [
+            "bet"
+          ]
+        },
+        {
+          "name": "market",
+          "docs": [
+            "Re-derived from the market's own stored `fixture_id`/`bump`, same",
+            "as every other instruction that touches an existing `Market` \u2014 see",
+            "`resolve_market.rs`. Not `mut`: see the module doc comment."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.fixture_id",
+                "account": "Market"
+              }
+            ]
+          },
+          "relations": [
+            "bet"
+          ]
+        },
+        {
+          "name": "bet",
+          "docs": [
+            "Seeds re-derive this from the account's own stored `outcome`",
+            "(`claim_winnings` takes no `outcome` argument \u2014 there's exactly one",
+            "correct value, whatever this specific bet was placed on) against",
+            "the *passed-in* `market`/`user` accounts, which already guarantees",
+            "this bet belongs to both of them. `has_one = user` / `has_one =",
+            "market` re-check the same thing the simpler way \u2014 redundant with",
+            "the seeds constraint, kept anyway as an independent check that",
+            "doesn't rely on the seeds derivation being bug-free."
+          ],
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "docs": [
+            "The market's escrow \u2014 identical constraints to `place_bet`'s",
+            "`vault`: always the canonical ATA of `market` for `usdc_mint`, so",
+            "there is no account that can redirect the payout elsewhere."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "usdc_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "user_usdc",
+          "writable": true
+        },
+        {
+          "name": "usdc_mint"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
     }
   ],
   "accounts": [
@@ -893,33 +1067,20 @@
       }
     },
     {
-      "name": "verifibet::instructions::place_bet::BetPlaced",
+      "name": "verifibet::instructions::initialize_market::MarketInitialized",
       "type": {
         "fields": [
+          {
+            "name": "fixture_id",
+            "type": "u64"
+          },
           {
             "name": "market",
             "type": "pubkey"
           },
           {
-            "name": "user",
-            "type": "pubkey"
-          },
-          {
-            "name": "outcome",
-            "type": "u8"
-          },
-          {
-            "name": "amount",
-            "type": "u64"
-          },
-          {
-            "name": "pools",
-            "type": {
-              "array": [
-                "u64",
-                3
-              ]
-            }
+            "name": "kickoff_ts",
+            "type": "i64"
           }
         ],
         "kind": "struct"
@@ -955,20 +1116,53 @@
       }
     },
     {
-      "name": "verifibet::instructions::initialize_market::MarketInitialized",
+      "name": "verifibet::instructions::place_bet::BetPlaced",
       "type": {
         "fields": [
-          {
-            "name": "fixture_id",
-            "type": "u64"
-          },
           {
             "name": "market",
             "type": "pubkey"
           },
           {
-            "name": "kickoff_ts",
-            "type": "i64"
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "outcome",
+            "type": "u8"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "pools",
+            "type": {
+              "array": [
+                "u64",
+                3
+              ]
+            }
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "verifibet::instructions::claim_winnings::WinningsClaimed",
+      "type": {
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "payout",
+            "type": "u64"
           }
         ],
         "kind": "struct"
@@ -1056,16 +1250,16 @@
   "events": [
     {
       "discriminator": [
-        88,
-        88,
-        145,
-        226,
-        126,
-        206,
-        32,
-        0
+        134,
+        160,
+        122,
+        87,
+        50,
+        3,
+        255,
+        81
       ],
-      "name": "verifibet::instructions::place_bet::BetPlaced"
+      "name": "verifibet::instructions::initialize_market::MarketInitialized"
     },
     {
       "discriminator": [
@@ -1082,16 +1276,29 @@
     },
     {
       "discriminator": [
-        134,
-        160,
-        122,
-        87,
-        50,
-        3,
-        255,
-        81
+        88,
+        88,
+        145,
+        226,
+        126,
+        206,
+        32,
+        0
       ],
-      "name": "verifibet::instructions::initialize_market::MarketInitialized"
+      "name": "verifibet::instructions::place_bet::BetPlaced"
+    },
+    {
+      "discriminator": [
+        187,
+        184,
+        29,
+        196,
+        54,
+        117,
+        70,
+        150
+      ],
+      "name": "verifibet::instructions::claim_winnings::WinningsClaimed"
     }
   ]
 }
