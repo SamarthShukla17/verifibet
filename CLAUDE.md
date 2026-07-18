@@ -172,6 +172,39 @@ fetch 6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J -o anchor/idls/txline.json
   package throws unconditionally outside Next's bundler, which would break
   these same CLI scripts.
 
+## TxLINE data endpoints
+
+Real paths (there is no bare `/fixtures`, `/odds`, or `/scores` — confirmed
+against `https://txline-dev.txodds.com/docs/docs.yaml` and live responses),
+all relative to `TXLINE_API_ORIGIN`, all requiring both auth headers:
+
+- `GET /api/fixtures/snapshot?competitionId=&startEpochDay=` — both query
+  params optional; `competitionId=72` is the World Cup. `startEpochDay`
+  (unix days, i.e. `floor(unixSeconds/86400)`) defaults to the **real**
+  current day UTC, not any in-story tournament date — pass it explicitly to
+  see fixtures that have already kicked off relative to the real clock.
+- `GET /api/odds/snapshot/{fixtureId}?asOf=` — only returns data "within
+  the current 5-minute interval" (or at the historical `asOf` timestamp);
+  `[]` for a fixture with no recent odds activity is a normal, real result,
+  not a failure.
+- `GET /api/scores/snapshot/{fixtureId}?asOf=` — returns every logged
+  `Action` event for the fixture (comment, goal, substitution, lineups,
+  var, game_finalised, ...); see `lib/txline/types.ts`'s `TxScore` for
+  which fields are always present vs. action-dependent.
+
+`lib/txline/types.ts` (`TxFixture`, `TxOdds`, `TxScore`) has field names
+copied from real captured payloads (`scripts/txline-smoke.ts` →
+`fixtures.sample.json`/`odds.sample.json`/`scores.sample.json` at repo
+root), not from the OpenAPI spec — the spec disagrees with reality in two
+places: the documented `Fixture` schema omits `GameState` entirely (present
+on real fixtures, as a **number**), and the documented `Scores` schema is
+camelCase while real score events are PascalCase like every other endpoint.
+
+**Devnet Service Level 1 has no sampling delay** (`samplingIntervalSec: 0`
+in the on-chain `pricing_matrix`, confirmed directly) — the 60-second
+Service-Level-1 delay mentioned in TxODDS's own marketing copy is a
+mainnet-only characteristic. Don't assume devnet data lags by 60s.
+
 ## Session rule
 
 Every session ends with a commit and a 30-second screen recording dropped

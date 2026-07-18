@@ -97,7 +97,13 @@ async function main() {
     [Buffer.from("pricing_matrix")],
     program.programId,
   );
-  const matrix = await program.account.pricingMatrix.fetch(pricingMatrixPda);
+  // `program` is typed against the generic `anchor.Idl`, not a generated
+  // TxLINE type, so the `.account` namespace doesn't know `pricingMatrix`
+  // by name — this is the untyped external-IDL equivalent of the `any` cast
+  // already used for `matrix.rows` below.
+  const matrix = await (program.account as any).pricingMatrix.fetch(
+    pricingMatrixPda,
+  );
   const row = (matrix.rows as any[]).find((r) => r.rowId === SERVICE_LEVEL_ID);
   if (!row) {
     throw new Error(
