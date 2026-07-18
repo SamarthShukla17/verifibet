@@ -144,8 +144,24 @@ pub struct ResolveMarket<'info> {
     /// CPI. `validate_stat`'s own IDL entry has exactly this one account,
     /// confirmed via `cargo expand` — not "config/root PDAs" plural, just
     /// this one.
+    ///
+    /// `.clamp(0, u16::MAX as i64)` (security audit finding, SECURITY.md
+    /// §5): `ts` is keeper-supplied and signed i64; an unclamped `ts /
+    /// MS_PER_DAY` on a negative or absurdly large `ts` would silently
+    /// truncate on the `as u16` cast instead of erroring. Not independently
+    /// exploitable (a wrapped epoch day just fails to match any account
+    /// TxLINE actually maintains, and `validate_stat` re-derives the same
+    /// PDA from the same `ts` independently), but relying on that instead
+    /// of well-defined arithmetic here isn't the "checked arithmetic"
+    /// standard the rest of this program holds to. Clamping makes the
+    /// seeds expression itself well-defined for every possible `ts`
+    /// without needing a `require!` that Anchor would evaluate too late
+    /// anyway (Accounts constraints run before the handler body).
     #[account(
-        seeds = [b"daily_scores_roots", &((ts / MS_PER_DAY) as u16).to_le_bytes()],
+        seeds = [
+            b"daily_scores_roots",
+            &((ts / MS_PER_DAY).clamp(0, u16::MAX as i64) as u16).to_le_bytes()
+        ],
         bump,
         seeds::program = txline_program.key(),
     )]

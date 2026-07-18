@@ -101,8 +101,19 @@ pub fn void_market(ctx: Context<VoidMarket>) -> Result<()> {
     let market = &mut ctx.accounts.market;
 
     common::require_open_or_locked(market.status)?;
+    // checked_add, not `+` (security audit finding, SECURITY.md §5): the
+    // workspace's overflow-checks=true release profile happens to turn an
+    // overflow here into a clean panic today, but that's an external Cargo
+    // setting this instruction shouldn't depend on for correctness — an
+    // explicit checked_add fails with a named error regardless of profile
+    // settings, and is consistent with every other arithmetic op in this
+    // program.
+    let void_after_ts = market
+        .kickoff_ts
+        .checked_add(VOID_GRACE_PERIOD_SECS)
+        .ok_or(VerifibetError::MathOverflow)?;
     require!(
-        Clock::get()?.unix_timestamp > market.kickoff_ts + VOID_GRACE_PERIOD_SECS,
+        Clock::get()?.unix_timestamp > void_after_ts,
         VerifibetError::TooEarlyToVoid
     );
 

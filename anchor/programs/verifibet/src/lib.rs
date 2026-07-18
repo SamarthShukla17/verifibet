@@ -6,7 +6,7 @@ mod state;
 
 use instructions::*;
 
-declare_id!("ChjuDZUnA5P9za6YjuMe6KYzwuDb6Y4mGacRWMvHCBPR");
+declare_id!("CCrrc5cdohor1EGGFkrQ3yKUS3zU9tnU2uzxWRnd2PMw");
 
 // Typed CPI bindings for TxLINE's `validate_stat`, generated from
 // anchor/idls/txline_validate.json — a trimmed copy of the fetched devnet
