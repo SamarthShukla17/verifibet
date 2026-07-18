@@ -1,5 +1,5 @@
 {
-  "address": "4jBNaT9zGYE6j3wbiLEsJAP9twbszxYiMnZxsd7ZjRKt",
+  "address": "6UT3c81UNdkqxnMHBHHggjVXmb7eeonTmeYfeZ3fLc73",
   "metadata": {
     "name": "verifibet",
     "version": "0.1.0",
@@ -203,9 +203,208 @@
           "type": "i64"
         }
       ]
+    },
+    {
+      "name": "place_bet",
+      "discriminator": [
+        222,
+        62,
+        67,
+        220,
+        63,
+        166,
+        126,
+        33
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "docs": [
+            "Re-derived from the market's own stored `fixture_id`/`bump` (not an",
+            "instruction arg \u2014 `place_bet` doesn't take one) so this is",
+            "guaranteed to be the canonical PDA for whatever fixture it claims,",
+            "not just any `Market`-typed account."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.fixture_id",
+                "account": "Market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "bet",
+          "docs": [
+            "One position per `(market, user, outcome)`. Re-betting the same",
+            "outcome reuses this same PDA and accumulates into `amount`; betting",
+            "a different outcome opens a distinct `Bet` PDA (see `state.rs`)."
+          ],
+          "writable": true
+        },
+        {
+          "name": "user_usdc",
+          "writable": true
+        },
+        {
+          "name": "usdc_mint"
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "usdc_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "docs": [
+            "Required by `init_if_needed` on `bet` above, even though it's not",
+            "otherwise touched in this instruction."
+          ],
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "associated_token_program",
+          "docs": [
+            "Required by Anchor's `associated_token::*` constraint resolution on",
+            "`vault` above (not otherwise touched \u2014 the vault already exists)."
+          ],
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        }
+      ],
+      "args": [
+        {
+          "name": "outcome",
+          "type": "u8"
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
     }
   ],
   "accounts": [
+    {
+      "name": "verifibet::state::Bet",
+      "discriminator": [
+        147,
+        23,
+        35,
+        59,
+        15,
+        75,
+        155,
+        32
+      ]
+    },
     {
       "name": "verifibet::state::Market",
       "discriminator": [
@@ -221,6 +420,47 @@
     }
   ],
   "types": [
+    {
+      "name": "verifibet::state::Bet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "outcome",
+            "docs": [
+              "0 = home, 1 = draw, 2 = away \u2014 never `OUTCOME_UNSET`; a `Bet`",
+              "account only ever exists for a specific staked outcome."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "amount",
+            "docs": [
+              "Cumulative USDC staked on this `(user, outcome)` position, base",
+              "units. Re-bets on the same outcome add to this rather than opening",
+              "a new account."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "claimed",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
     {
       "name": "verifibet::state::Market",
       "type": {
@@ -372,6 +612,39 @@
         ],
         "kind": "struct"
       }
+    },
+    {
+      "name": "verifibet::instructions::place_bet::BetPlaced",
+      "type": {
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "outcome",
+            "type": "u8"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "pools",
+            "type": {
+              "array": [
+                "u64",
+                3
+              ]
+            }
+          }
+        ],
+        "kind": "struct"
+      }
     }
   ],
   "constants": [],
@@ -460,6 +733,19 @@
         81
       ],
       "name": "verifibet::instructions::initialize_market::MarketInitialized"
+    },
+    {
+      "discriminator": [
+        88,
+        88,
+        145,
+        226,
+        126,
+        206,
+        32,
+        0
+      ],
+      "name": "verifibet::instructions::place_bet::BetPlaced"
     }
   ]
 }

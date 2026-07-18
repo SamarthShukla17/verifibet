@@ -6,7 +6,7 @@ mod state;
 
 use instructions::*;
 
-declare_id!("4jBNaT9zGYE6j3wbiLEsJAP9twbszxYiMnZxsd7ZjRKt");
+declare_id!("6UT3c81UNdkqxnMHBHHggjVXmb7eeonTmeYfeZ3fLc73");
 
 #[program]
 pub mod verifibet {
@@ -24,5 +24,9 @@ pub mod verifibet {
         kickoff_ts: i64,
     ) -> Result<()> {
         instructions::initialize_market(ctx, fixture_id, home, away, kickoff_ts)
+    }
+
+    pub fn place_bet(ctx: Context<PlaceBet>, outcome: u8, amount: u64) -> Result<()> {
+        instructions::place_bet(ctx, outcome, amount)
     }
 }
