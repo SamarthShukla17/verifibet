@@ -1,0 +1,19 @@
+[package]
+name = "mock-txline"
+version = "0.1.0"
+description = "Local-validator stand-in for TxLINE's validate_stat, test-only"
+edition.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "mock_txline"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+
+[dependencies]
+anchor-lang = { version = "0.30.1" }

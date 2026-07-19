@@ -21,8 +21,16 @@ use crate::errors::VerifibetError;
 use crate::instructions::common;
 use crate::state::{Bet, Market, MarketStatus, BET_SEED, MARKET_SEED};
 
-/// One day, in seconds — see the module doc comment.
+/// One day, in seconds — see the module doc comment. Shrunk under
+/// `test-mock-txline` (local-validator test builds only, see lib.rs) to a
+/// few seconds so `anchor/tests/verifibet.ts` can actually exercise
+/// `TooEarlyToVoid` and the void->refund path within a normal test run
+/// instead of needing to wait out a real day; never part of a
+/// devnet/mainnet build.
+#[cfg(not(feature = "test-mock-txline"))]
 const VOID_GRACE_PERIOD_SECS: i64 = 86_400;
+#[cfg(feature = "test-mock-txline")]
+const VOID_GRACE_PERIOD_SECS: i64 = 3;
 
 #[derive(Accounts)]
 pub struct VoidMarket<'info> {

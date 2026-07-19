@@ -7,6 +7,14 @@ skip-lint = false
 [programs.devnet]
 verifibet = "CCrrc5cdohor1EGGFkrQ3yKUS3zU9tnU2uzxWRnd2PMw"
 
+# mock-txline only ever exists here — it's a local-validator stand-in for
+# TxLINE's real devnet/mainnet program (see anchor/programs/mock-txline and
+# the doc comment above `declare_program!` in programs/verifibet/src/lib.rs),
+# so it has no [programs.devnet] entry of its own.
+[programs.localnet]
+verifibet = "CCrrc5cdohor1EGGFkrQ3yKUS3zU9tnU2uzxWRnd2PMw"
+mock_txline = "DAkcQvNeL4zHoMikfi6rqTf9cQ3SSbBMHM15DLM8sikR"
+
 [registry]
 url = "https://api.apr.dev"
 

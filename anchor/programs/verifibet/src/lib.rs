@@ -24,7 +24,31 @@ declare_id!("CCrrc5cdohor1EGGFkrQ3yKUS3zU9tnU2uzxWRnd2PMw");
 // compile. Neither bug is reachable once trimmed to just `validate_stat`.
 // `anchor/idls/txline.json` itself is untouched — `scripts/txline-*.ts`
 // still read the full IDL for the `subscribe` flow.
+//
+// `Program<'info, Txoracle>` (see resolve_market.rs) pins `txline_program`
+// at compile time to whatever address this macro embeds from the IDL's own
+// `address` field — the entire point being that no other program can be
+// substituted there at runtime. That's exactly why swapping in a mock CPI
+// target for local tests has to be a *build-time* choice, not a runtime
+// one: the `test-mock-txline` feature (off by default, never part of the
+// devnet/mainnet build) switches which IDL this macro reads.
+// `idls/txline_validate_mock.json` is a byte-identical copy of
+// `txline_validate.json` except `address`, which points at
+// `mock-txline`'s own declared id (anchor/programs/mock-txline) instead of
+// TxLINE's real devnet program — `metadata.name` is left as `"txoracle"`
+// in both files on purpose, so `declare_program!` generates the same
+// `program::Txoracle` type name either way and nothing downstream
+// (resolve_market.rs's `use crate::txline_validate::{..., program::Txoracle, ...}`)
+// needs to know which one is active. `use txline_validate_mock as
+// txline_validate;` below aliases the generated module so every other
+// reference to `crate::txline_validate::*` also resolves unchanged.
+#[cfg(not(feature = "test-mock-txline"))]
 declare_program!(txline_validate);
+
+#[cfg(feature = "test-mock-txline")]
+declare_program!(txline_validate_mock);
+#[cfg(feature = "test-mock-txline")]
+use txline_validate_mock as txline_validate;
 
 // Anchor 0.30.1's `#[program]` macro parses every `pub fn` inside the mod
 // unconditionally when generating its own auxiliary code (client-accounts

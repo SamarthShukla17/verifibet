@@ -1278,27 +1278,7 @@
       }
     },
     {
-      "name": "verifibet::instructions::initialize_market::MarketInitialized",
-      "type": {
-        "fields": [
-          {
-            "name": "fixture_id",
-            "type": "u64"
-          },
-          {
-            "name": "market",
-            "type": "pubkey"
-          },
-          {
-            "name": "kickoff_ts",
-            "type": "i64"
-          }
-        ],
-        "kind": "struct"
-      }
-    },
-    {
-      "name": "verifibet::instructions::claim_winnings::WinningsClaimed",
+      "name": "verifibet::instructions::void_and_refund::RefundClaimed",
       "type": {
         "fields": [
           {
@@ -1351,6 +1331,62 @@
       }
     },
     {
+      "name": "verifibet::instructions::claim_winnings::WinningsClaimed",
+      "type": {
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "payout",
+            "type": "u64"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "verifibet::instructions::initialize_market::MarketInitialized",
+      "type": {
+        "fields": [
+          {
+            "name": "fixture_id",
+            "type": "u64"
+          },
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "kickoff_ts",
+            "type": "i64"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "verifibet::instructions::void_and_refund::VoidedMarket",
+      "type": {
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "fixture_id",
+            "type": "u64"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
       "name": "verifibet::instructions::resolve_market::MarketResolved",
       "type": {
         "fields": [
@@ -1374,42 +1410,6 @@
                 32
               ]
             }
-          }
-        ],
-        "kind": "struct"
-      }
-    },
-    {
-      "name": "verifibet::instructions::void_and_refund::RefundClaimed",
-      "type": {
-        "fields": [
-          {
-            "name": "market",
-            "type": "pubkey"
-          },
-          {
-            "name": "user",
-            "type": "pubkey"
-          },
-          {
-            "name": "payout",
-            "type": "u64"
-          }
-        ],
-        "kind": "struct"
-      }
-    },
-    {
-      "name": "verifibet::instructions::void_and_refund::VoidedMarket",
-      "type": {
-        "fields": [
-          {
-            "name": "market",
-            "type": "pubkey"
-          },
-          {
-            "name": "fixture_id",
-            "type": "u64"
           }
         ],
         "kind": "struct"
@@ -1497,29 +1497,16 @@
   "events": [
     {
       "discriminator": [
-        134,
-        160,
-        122,
-        87,
-        50,
-        3,
-        255,
-        81
+        136,
+        64,
+        242,
+        99,
+        4,
+        244,
+        208,
+        130
       ],
-      "name": "verifibet::instructions::initialize_market::MarketInitialized"
-    },
-    {
-      "discriminator": [
-        187,
-        184,
-        29,
-        196,
-        54,
-        117,
-        70,
-        150
-      ],
-      "name": "verifibet::instructions::claim_winnings::WinningsClaimed"
+      "name": "verifibet::instructions::void_and_refund::RefundClaimed"
     },
     {
       "discriminator": [
@@ -1536,29 +1523,29 @@
     },
     {
       "discriminator": [
-        89,
-        67,
-        230,
-        95,
-        143,
-        106,
-        199,
-        202
+        187,
+        184,
+        29,
+        196,
+        54,
+        117,
+        70,
+        150
       ],
-      "name": "verifibet::instructions::resolve_market::MarketResolved"
+      "name": "verifibet::instructions::claim_winnings::WinningsClaimed"
     },
     {
       "discriminator": [
-        136,
-        64,
-        242,
-        99,
-        4,
-        244,
-        208,
-        130
+        134,
+        160,
+        122,
+        87,
+        50,
+        3,
+        255,
+        81
       ],
-      "name": "verifibet::instructions::void_and_refund::RefundClaimed"
+      "name": "verifibet::instructions::initialize_market::MarketInitialized"
     },
     {
       "discriminator": [
@@ -1572,6 +1559,19 @@
         224
       ],
       "name": "verifibet::instructions::void_and_refund::VoidedMarket"
+    },
+    {
+      "discriminator": [
+        89,
+        67,
+        230,
+        95,
+        143,
+        106,
+        199,
+        202
+      ],
+      "name": "verifibet::instructions::resolve_market::MarketResolved"
     }
   ]
 }
