@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "devnet:check": "tsx scripts/devnet-check.ts",
+    "devnet:e2e": "tsx scripts/devnet-e2e.ts",
     "txline:subscribe": "tsx scripts/txline-subscribe.ts",
     "txline:activate": "tsx scripts/txline-activate.ts",
     "txline:smoke": "tsx scripts/txline-smoke.ts",

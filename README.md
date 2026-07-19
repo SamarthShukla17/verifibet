@@ -1,5 +1,12 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Deployed program (devnet)
+
+- Program ID: `CCrrc5cdohor1EGGFkrQ3yKUS3zU9tnU2uzxWRnd2PMw`
+- Explorer: https://explorer.solana.com/address/CCrrc5cdohor1EGGFkrQ3yKUS3zU9tnU2uzxWRnd2PMw?cluster=devnet
+- IDL is published on-chain (`anchor idl init`) — introspectable directly
+  from the program address, no local IDL file required.
+
 ## Plan notes
 
 - Devnet demo uses a 6dp mock USDC mint (`NEXT_PUBLIC_USDC_MINT` in

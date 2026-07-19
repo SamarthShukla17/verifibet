@@ -1,4 +1,10 @@
-{
+/**
+ * Program IDL in camelCase format in order to be used in JS/TS.
+ *
+ * Note that this is only a type helper and is not the actual IDL. The original
+ * IDL can be found at `target/idl/verifibet.json`.
+ */
+export type Verifibet = {
   "address": "CCrrc5cdohor1EGGFkrQ3yKUS3zU9tnU2uzxWRnd2PMw",
   "metadata": {
     "name": "verifibet",
@@ -23,7 +29,7 @@
       "args": []
     },
     {
-      "name": "initialize_market",
+      "name": "initializeMarket",
       "discriminator": [
         35,
         35,
@@ -62,13 +68,13 @@
               },
               {
                 "kind": "arg",
-                "path": "fixture_id"
+                "path": "fixtureId"
               }
             ]
           }
         },
         {
-          "name": "usdc_mint",
+          "name": "usdcMint",
           "docs": [
             "Pinned into `market.usdc_mint` below. Every later token-moving",
             "instruction re-checks its own mint account against that field",
@@ -130,7 +136,7 @@
               },
               {
                 "kind": "account",
-                "path": "usdc_mint"
+                "path": "usdcMint"
               }
             ],
             "program": {
@@ -173,21 +179,21 @@
           }
         },
         {
-          "name": "associated_token_program",
+          "name": "associatedTokenProgram",
           "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
         },
         {
-          "name": "token_program",
+          "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
         {
-          "name": "system_program",
+          "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
         {
-          "name": "fixture_id",
+          "name": "fixtureId",
           "type": "u64"
         },
         {
@@ -199,13 +205,13 @@
           "type": "string"
         },
         {
-          "name": "kickoff_ts",
+          "name": "kickoffTs",
           "type": "i64"
         }
       ]
     },
     {
-      "name": "place_bet",
+      "name": "placeBet",
       "discriminator": [
         222,
         62,
@@ -247,7 +253,7 @@
               {
                 "kind": "account",
                 "path": "market.fixture_id",
-                "account": "Market"
+                "account": "market"
               }
             ]
           }
@@ -262,11 +268,11 @@
           "writable": true
         },
         {
-          "name": "user_usdc",
+          "name": "userUsdc",
           "writable": true
         },
         {
-          "name": "usdc_mint"
+          "name": "usdcMint"
         },
         {
           "name": "vault",
@@ -316,7 +322,7 @@
               },
               {
                 "kind": "account",
-                "path": "usdc_mint"
+                "path": "usdcMint"
               }
             ],
             "program": {
@@ -359,11 +365,11 @@
           }
         },
         {
-          "name": "token_program",
+          "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
         {
-          "name": "system_program",
+          "name": "systemProgram",
           "docs": [
             "Required by `init_if_needed` on `bet` above, even though it's not",
             "otherwise touched in this instruction."
@@ -371,7 +377,7 @@
           "address": "11111111111111111111111111111111"
         },
         {
-          "name": "associated_token_program",
+          "name": "associatedTokenProgram",
           "docs": [
             "Required by Anchor's `associated_token::*` constraint resolution on",
             "`vault` above (not otherwise touched — the vault already exists)."
@@ -391,7 +397,7 @@
       ]
     },
     {
-      "name": "lock_market",
+      "name": "lockMarket",
       "discriminator": [
         107,
         8,
@@ -426,7 +432,7 @@
               {
                 "kind": "account",
                 "path": "market.fixture_id",
-                "account": "Market"
+                "account": "market"
               }
             ]
           }
@@ -435,7 +441,7 @@
       "args": []
     },
     {
-      "name": "resolve_market",
+      "name": "resolveMarket",
       "discriminator": [
         155,
         23,
@@ -470,13 +476,13 @@
               {
                 "kind": "account",
                 "path": "market.fixture_id",
-                "account": "Market"
+                "account": "market"
               }
             ]
           }
         },
         {
-          "name": "txline_program",
+          "name": "txlineProgram",
           "docs": [
             "`Program<'info, T>` already enforces this is exactly TxLINE's",
             "deployed program (`txline_validate::ID`, embedded from the IDL's",
@@ -485,7 +491,7 @@
           "address": "6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J"
         },
         {
-          "name": "daily_scores_merkle_roots",
+          "name": "dailyScoresMerkleRoots",
           "docs": [
             "rather than a typed `Account<'info, _>` — we have no (and shouldn't",
             "invent any) view into its internal layout; `validate_stat` is the",
@@ -524,7 +530,7 @@
           "type": "i64"
         },
         {
-          "name": "fixture_summary",
+          "name": "fixtureSummary",
           "type": {
             "defined": {
               "name": "verifibet::txline_validate::types::ScoresBatchSummary"
@@ -532,7 +538,7 @@
           }
         },
         {
-          "name": "fixture_proof",
+          "name": "fixtureProof",
           "type": {
             "vec": {
               "defined": {
@@ -542,7 +548,7 @@
           }
         },
         {
-          "name": "main_tree_proof",
+          "name": "mainTreeProof",
           "type": {
             "vec": {
               "defined": {
@@ -552,7 +558,7 @@
           }
         },
         {
-          "name": "stat_home",
+          "name": "statHome",
           "type": {
             "defined": {
               "name": "verifibet::txline_validate::types::StatTerm"
@@ -560,7 +566,7 @@
           }
         },
         {
-          "name": "stat_away",
+          "name": "statAway",
           "type": {
             "defined": {
               "name": "verifibet::txline_validate::types::StatTerm"
@@ -570,7 +576,7 @@
       ]
     },
     {
-      "name": "claim_winnings",
+      "name": "claimWinnings",
       "discriminator": [
         161,
         215,
@@ -612,7 +618,7 @@
               {
                 "kind": "account",
                 "path": "market.fixture_id",
-                "account": "Market"
+                "account": "market"
               }
             ]
           },
@@ -687,7 +693,7 @@
               },
               {
                 "kind": "account",
-                "path": "usdc_mint"
+                "path": "usdcMint"
               }
             ],
             "program": {
@@ -730,21 +736,21 @@
           }
         },
         {
-          "name": "user_usdc",
+          "name": "userUsdc",
           "writable": true
         },
         {
-          "name": "usdc_mint"
+          "name": "usdcMint"
         },
         {
-          "name": "token_program",
+          "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
       "args": []
     },
     {
-      "name": "void_market",
+      "name": "voidMarket",
       "discriminator": [
         243,
         175,
@@ -779,7 +785,7 @@
               {
                 "kind": "account",
                 "path": "market.fixture_id",
-                "account": "Market"
+                "account": "market"
               }
             ]
           }
@@ -788,7 +794,7 @@
       "args": []
     },
     {
-      "name": "claim_refund",
+      "name": "claimRefund",
       "discriminator": [
         15,
         16,
@@ -825,7 +831,7 @@
               {
                 "kind": "account",
                 "path": "market.fixture_id",
-                "account": "Market"
+                "account": "market"
               }
             ]
           },
@@ -885,7 +891,7 @@
               },
               {
                 "kind": "account",
-                "path": "usdc_mint"
+                "path": "usdcMint"
               }
             ],
             "program": {
@@ -928,14 +934,14 @@
           }
         },
         {
-          "name": "user_usdc",
+          "name": "userUsdc",
           "writable": true
         },
         {
-          "name": "usdc_mint"
+          "name": "usdcMint"
         },
         {
-          "name": "token_program",
+          "name": "tokenProgram",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
@@ -1053,77 +1059,77 @@
   "errors": [
     {
       "code": 6000,
-      "name": "MarketNotOpen",
+      "name": "marketNotOpen",
       "msg": "Market is not open"
     },
     {
       "code": 6001,
-      "name": "KickoffPassed",
+      "name": "kickoffPassed",
       "msg": "Kickoff has already passed"
     },
     {
       "code": 6002,
-      "name": "KickoffNotPassed",
+      "name": "kickoffNotPassed",
       "msg": "Kickoff has not passed yet"
     },
     {
       "code": 6003,
-      "name": "InvalidOutcome",
+      "name": "invalidOutcome",
       "msg": "Outcome must be 0 (home), 1 (draw), or 2 (away)"
     },
     {
       "code": 6004,
-      "name": "MarketNotResolved",
+      "name": "marketNotResolved",
       "msg": "Market is not resolved"
     },
     {
       "code": 6005,
-      "name": "MarketNotVoided",
+      "name": "marketNotVoided",
       "msg": "Market is not voided"
     },
     {
       "code": 6006,
-      "name": "NotWinningBet",
+      "name": "notWinningBet",
       "msg": "Bet did not win"
     },
     {
       "code": 6007,
-      "name": "AlreadyClaimed",
+      "name": "alreadyClaimed",
       "msg": "Bet has already been claimed"
     },
     {
       "code": 6008,
-      "name": "Unauthorized",
+      "name": "unauthorized",
       "msg": "Signer is not authorized for this action"
     },
     {
       "code": 6009,
-      "name": "ZeroAmount",
+      "name": "zeroAmount",
       "msg": "Amount must be greater than zero"
     },
     {
       "code": 6010,
-      "name": "MathOverflow",
+      "name": "mathOverflow",
       "msg": "Arithmetic overflow"
     },
     {
       "code": 6011,
-      "name": "TooEarlyToVoid",
+      "name": "tooEarlyToVoid",
       "msg": "Too early to void this market"
     },
     {
       "code": 6012,
-      "name": "MintMismatch",
+      "name": "mintMismatch",
       "msg": "Token account mint does not match the market's usdc_mint"
     },
     {
       "code": 6013,
-      "name": "NameTooLong",
+      "name": "nameTooLong",
       "msg": "Team name exceeds 24 bytes"
     },
     {
       "code": 6014,
-      "name": "InvalidStatProof",
+      "name": "invalidStatProof",
       "msg": "Stat proof does not represent a valid full-time result comparison"
     }
   ],
@@ -1184,7 +1190,7 @@
             "type": "pubkey"
           },
           {
-            "name": "usdc_mint",
+            "name": "usdcMint",
             "docs": [
               "USDC mint pinned at `initialize_market`. Every token-moving",
               "instruction re-checks accounts against this field rather than",
@@ -1193,7 +1199,7 @@
             "type": "pubkey"
           },
           {
-            "name": "fixture_id",
+            "name": "fixtureId",
             "docs": [
               "TxLINE fixture id. Also the seed that derives this account's own",
               "address, so it's redundant with the PDA itself but kept as a field",
@@ -1210,7 +1216,7 @@
             "type": "string"
           },
           {
-            "name": "kickoff_ts",
+            "name": "kickoffTs",
             "type": "i64"
           },
           {
@@ -1246,7 +1252,7 @@
             }
           },
           {
-            "name": "total_pool",
+            "name": "totalPool",
             "docs": [
               "`pools[0] + pools[1] + pools[2]`, kept redundantly so the frontend",
               "doesn't need to sum on every read. Instructions that mutate `pools`",
@@ -1255,7 +1261,7 @@
             "type": "u64"
           },
           {
-            "name": "proof_hash",
+            "name": "proofHash",
             "docs": [
               "Settlement proof (e.g. a TxLINE Merkle root) backing the resolved",
               "outcome. All-zero while unresolved."
@@ -1268,7 +1274,7 @@
             }
           },
           {
-            "name": "resolved_at",
+            "name": "resolvedAt",
             "docs": [
               "Unix seconds the market was resolved at; `0` while unresolved."
             ],
@@ -1287,16 +1293,16 @@
         "kind": "enum",
         "variants": [
           {
-            "name": "Open"
+            "name": "open"
           },
           {
-            "name": "Locked"
+            "name": "locked"
           },
           {
-            "name": "Resolved"
+            "name": "resolved"
           },
           {
-            "name": "Voided"
+            "name": "voided"
           }
         ]
       }
@@ -1316,7 +1322,7 @@
             }
           },
           {
-            "name": "is_right_sibling",
+            "name": "isRightSibling",
             "type": "bool"
           }
         ]
@@ -1356,11 +1362,11 @@
         "kind": "struct",
         "fields": [
           {
-            "name": "fixture_id",
+            "name": "fixtureId",
             "type": "i64"
           },
           {
-            "name": "update_stats",
+            "name": "updateStats",
             "type": {
               "defined": {
                 "name": "verifibet::txline_validate::types::ScoresUpdateStats"
@@ -1368,7 +1374,7 @@
             }
           },
           {
-            "name": "events_sub_tree_root",
+            "name": "eventsSubTreeRoot",
             "type": {
               "array": [
                 "u8",
@@ -1385,15 +1391,15 @@
         "kind": "struct",
         "fields": [
           {
-            "name": "update_count",
+            "name": "updateCount",
             "type": "i32"
           },
           {
-            "name": "min_timestamp",
+            "name": "minTimestamp",
             "type": "i64"
           },
           {
-            "name": "max_timestamp",
+            "name": "maxTimestamp",
             "type": "i64"
           }
         ]
@@ -1405,7 +1411,7 @@
         "kind": "struct",
         "fields": [
           {
-            "name": "stat_to_prove",
+            "name": "statToProve",
             "type": {
               "defined": {
                 "name": "verifibet::txline_validate::types::ScoreStat"
@@ -1413,7 +1419,7 @@
             }
           },
           {
-            "name": "event_stat_root",
+            "name": "eventStatRoot",
             "type": {
               "array": [
                 "u8",
@@ -1422,7 +1428,7 @@
             }
           },
           {
-            "name": "stat_proof",
+            "name": "statProof",
             "type": {
               "vec": {
                 "defined": {
@@ -1513,7 +1519,7 @@
         "kind": "struct",
         "fields": [
           {
-            "name": "fixture_id",
+            "name": "fixtureId",
             "type": "u64"
           },
           {
@@ -1521,7 +1527,7 @@
             "type": "pubkey"
           },
           {
-            "name": "kickoff_ts",
+            "name": "kickoffTs",
             "type": "i64"
           }
         ]
@@ -1537,7 +1543,7 @@
             "type": "pubkey"
           },
           {
-            "name": "fixture_id",
+            "name": "fixtureId",
             "type": "u64"
           }
         ]
@@ -1553,7 +1559,7 @@
             "type": "pubkey"
           },
           {
-            "name": "fixture_id",
+            "name": "fixtureId",
             "type": "u64"
           },
           {
@@ -1561,7 +1567,7 @@
             "type": "u8"
           },
           {
-            "name": "proof_hash",
+            "name": "proofHash",
             "type": {
               "array": [
                 "u8",
@@ -1573,4 +1579,4 @@
       }
     }
   ]
-}
+};

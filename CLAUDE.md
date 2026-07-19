@@ -55,9 +55,30 @@ same file but is not the target for the hackathon deadline.
 - TxLINE program ID: `9ExbZjAapQww1vfcisDmrngPinHTEfpjYRWMunJgcKaA`
 - TXL token mint: `Zhw9TVKp68a1QrftncMSd6ELXKDtpVMNuMGr1jNwdeL`
 
-VERIFIBET's own Anchor program ID (once deployed) goes in
-`NEXT_PUBLIC_PROGRAM_ID` / `.env.local`, not in `lib/config.ts` — it's ours,
-not TxLINE's.
+VERIFIBET's own Anchor program ID goes in `NEXT_PUBLIC_PROGRAM_ID` /
+`.env.local`, not in `lib/config.ts` — it's ours, not TxLINE's.
+
+**VERIFIBET program (devnet, deployed 2026-07-19)**
+- Program ID: `CCrrc5cdohor1EGGFkrQ3yKUS3zU9tnU2uzxWRnd2PMw` —
+  [explorer](https://explorer.solana.com/address/CCrrc5cdohor1EGGFkrQ3yKUS3zU9tnU2uzxWRnd2PMw?cluster=devnet)
+- IDL is published on-chain (`anchor idl init`) at the same address —
+  `anchor idl fetch CCrrc5cdohor1EGGFkrQ3yKUS3zU9tnU2uzxWRnd2PMw --provider.cluster devnet`
+  works for anyone, no local IDL file needed.
+- Upgrade authority is this machine's `~/.config/solana/id.json`
+  (`ULxBcwf4vqyT2UtZzGNamBCai7vnMAbpMkBA5BeF7e6`).
+- Deploy command: `anchor build --no-idl -- --tools-version v1.52 &&
+  anchor deploy --provider.cluster devnet` from `anchor/` — **never** with
+  `--features test-mock-txline` (that points `resolve_market`'s CPI at
+  `anchor/programs/mock-txline`, a local-validator-only stand-in, instead
+  of real TxLINE — see `programs/verifibet/src/lib.rs`'s `declare_program!`
+  doc comment). A prior session's `anchor test` run accidentally
+  deployed a `test-mock-txline` build to this exact address before this was
+  caught — the deploy documented here re-deployed the correct default build
+  over it.
+- A `mock-txline` program also sits on devnet at
+  `DAkcQvNeL4zHoMikfi6rqTf9cQ3SSbBMHM15DLM8sikR` from that same incident.
+  It's inert (nothing references it once `verifibet` is built without
+  `test-mock-txline`) and deliberately left alone rather than closed.
 
 ## Conventions
 
