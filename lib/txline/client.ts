@@ -26,6 +26,7 @@ import {
   TxScoresSchema,
   TxScoresStatValidationSchema,
 } from "@/lib/txline/schemas";
+import { readThrough, FIXTURES_TTL_SECONDS, ODDS_TTL_SECONDS, PROOF_TTL_SECONDS } from "@/lib/cache";
 import type { z } from "zod";
 
 const ONE_DAY_SECONDS = 86_400;
@@ -100,10 +101,33 @@ export interface GetFixturesParams {
   to?: number;
 }
 
-/** GET /api/fixtures/snapshot?competitionId=&startEpochDay= */
+/**
+ * GET /api/fixtures/snapshot?competitionId=&startEpochDay=
+ *
+ * Cached under a single `fixtures:all` key (see `lib/cache.ts`) regardless
+ * of `params` — every current caller in this codebase fetches the same
+ * `competition`/`from` (the full tournament window), so this is safe in
+ * practice, but it does mean a caller passing genuinely different
+ * `competition`/`from` values within the same 60s window would get
+ * whichever params first populated the cache, not their own — a
+ * deliberate simplification matching the cache's literal spec, not an
+ * oversight. `to` is intentionally applied *after* the cached fetch, not
+ * baked into the cached value, so it's always correct per-call regardless
+ * of cache hit/miss.
+ */
 export async function getFixtures(
   params: GetFixturesParams = {},
 ): Promise<TxFixture[]> {
+  const fixtures = await readThrough("fixtures:all", FIXTURES_TTL_SECONDS, () =>
+    fetchFixtures(params),
+  );
+
+  if (params.to === undefined) return fixtures;
+  const toMs = params.to * 1000;
+  return fixtures.filter((f) => f.StartTime <= toMs);
+}
+
+async function fetchFixtures(params: GetFixturesParams): Promise<TxFixture[]> {
   const query = new URLSearchParams();
   if (params.competition !== undefined) {
     query.set("competitionId", String(params.competition));
@@ -118,15 +142,7 @@ export async function getFixtures(
   const response = await fetchWithRetry(
     `/api/fixtures/snapshot${query.size > 0 ? `?${query}` : ""}`,
   );
-  const fixtures = parsePayload(
-    TxFixturesSchema,
-    await response.json(),
-    "getFixtures",
-  );
-
-  if (params.to === undefined) return fixtures;
-  const toMs = params.to * 1000;
-  return fixtures.filter((f) => f.StartTime <= toMs);
+  return parsePayload(TxFixturesSchema, await response.json(), "getFixtures");
 }
 
 /**
@@ -138,8 +154,10 @@ export async function getFixtures(
  * odds.sample.json / NOTES.md).
  */
 export async function getOdds(fixtureId: number): Promise<TxOdds[]> {
-  const response = await fetchWithRetry(`/api/odds/snapshot/${fixtureId}`);
-  return parsePayload(TxOddsListSchema, await response.json(), "getOdds");
+  return readThrough(`odds:${fixtureId}`, ODDS_TTL_SECONDS, async () => {
+    const response = await fetchWithRetry(`/api/odds/snapshot/${fixtureId}`);
+    return parsePayload(TxOddsListSchema, await response.json(), "getOdds");
+  });
 }
 
 /**
@@ -177,19 +195,25 @@ export async function getValidationProof(
   statKey: number,
   statKey2?: number,
 ): Promise<TxScoresStatValidation> {
-  const query = new URLSearchParams({
-    fixtureId: String(fixtureId),
-    seq: String(seq),
-    statKey: String(statKey),
-  });
-  if (statKey2 !== undefined) query.set("statKey2", String(statKey2));
+  // Keyed on the full identifying tuple, not just fixtureId — see
+  // lib/cache.ts's doc comment for why `proof:<id>` alone would be wrong.
+  const cacheKey = `proof:${fixtureId}:${seq}:${statKey}:${statKey2 ?? "-"}`;
 
-  const response = await fetchWithRetry(`/api/scores/stat-validation?${query}`);
-  return parsePayload(
-    TxScoresStatValidationSchema,
-    await response.json(),
-    "getValidationProof",
-  );
+  return readThrough(cacheKey, PROOF_TTL_SECONDS, async () => {
+    const query = new URLSearchParams({
+      fixtureId: String(fixtureId),
+      seq: String(seq),
+      statKey: String(statKey),
+    });
+    if (statKey2 !== undefined) query.set("statKey2", String(statKey2));
+
+    const response = await fetchWithRetry(`/api/scores/stat-validation?${query}`);
+    return parsePayload(
+      TxScoresStatValidationSchema,
+      await response.json(),
+      "getValidationProof",
+    );
+  });
 }
 
 export { TxlineApiError };
