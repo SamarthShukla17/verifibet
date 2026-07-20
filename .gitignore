@@ -40,6 +40,7 @@ NOTES.md
 *.sample.json
 demo-data/raw
 .txline-subscription.json
+/proofs
 
 # claude code local session settings
 .claude/settings.local.json

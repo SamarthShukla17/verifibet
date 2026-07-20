@@ -37,10 +37,15 @@ describe("TxLINE zod schemas parse real captured payloads", () => {
   });
 
   it("parses a stat-validation response, normalizing a Nil List_ProofNode to []", () => {
+    // Hashes are real 32-byte arrays here, not base64 strings — the
+    // OpenAPI spec's `format: binary` doesn't match the real wire
+    // format, confirmed against a live response (see NOTES.md and
+    // lib/txline/types.ts's TxProofNode doc comment).
+    const hash = new Array(32).fill(0);
     const payload = {
       ts: 1783289390162,
       statToProve: { key: 1, value: 1, period: 100 },
-      eventStatRoot: "base64rootplaceholder==",
+      eventStatRoot: hash,
       summary: {
         fixtureId: 18187298,
         updateStats: {
@@ -48,9 +53,9 @@ describe("TxLINE zod schemas parse real captured payloads", () => {
           minTimestamp: 1782847947759,
           maxTimestamp: 1783289555398,
         },
-        eventStatsSubTreeRoot: "base64treeplaceholder==",
+        eventStatsSubTreeRoot: hash,
       },
-      statProof: [{ hash: "base64hashplaceholder==", isRightSibling: true }],
+      statProof: [{ hash, isRightSibling: true }],
       subTreeProof: {},
       mainTreeProof: [],
     };

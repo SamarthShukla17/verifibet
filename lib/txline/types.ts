@@ -136,8 +136,16 @@ export interface TxScore {
  * types the on-chain CPI consumes — same underlying data, different layer.
  */
 export interface TxProofNode {
-  /** Base64-encoded 32-byte hash (OpenAPI `format: binary`). */
-  hash: string;
+  /**
+   * A raw 32-byte hash, as a plain JSON array of 32 numbers (0-255) —
+   * **not** the base64 string the OpenAPI spec's `format: binary`
+   * implies. Confirmed against a real `/api/scores/stat-validation`
+   * response (see `proof.sample.json` at the repo root and NOTES.md);
+   * the spec's declared type doesn't match the real wire format here,
+   * same pattern as `Fixture`/`Scores`' other doc-vs-reality gaps noted
+   * elsewhere in this file.
+   */
+  hash: number[];
   isRightSibling: boolean;
 }
 
@@ -156,16 +164,16 @@ export interface TxScoresUpdateStats {
 export interface TxScoresBatchSummary {
   fixtureId: number;
   updateStats: TxScoresUpdateStats;
-  /** Base64-encoded 32-byte hash. */
-  eventStatsSubTreeRoot: string;
+  /** Raw 32-byte hash as `number[]` — see `TxProofNode.hash`'s doc comment. */
+  eventStatsSubTreeRoot: number[];
 }
 
 /** GET /api/scores/stat-validation — legacy mode (`statKey`/`statKey2`). */
 export interface TxScoresStatValidation {
   ts: number;
   statToProve: TxScoreStat;
-  /** Base64-encoded 32-byte hash. */
-  eventStatRoot: string;
+  /** Raw 32-byte hash as `number[]` — see `TxProofNode.hash`'s doc comment. */
+  eventStatRoot: number[];
   summary: TxScoresBatchSummary;
   statProof: TxProofNode[];
   subTreeProof: TxProofNode[];

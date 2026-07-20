@@ -83,8 +83,13 @@ export const TxScoreSchema = z.object({
 });
 export const TxScoresSchema = z.array(TxScoreSchema);
 
+// Real 32-byte hash, as a plain array of 32 numbers — NOT the base64
+// string the OpenAPI spec's `format: binary` implies. Confirmed against
+// a real response (see lib/txline/types.ts's TxProofNode doc comment).
+const TxHashBytesSchema = z.array(z.number()).length(32);
+
 export const TxProofNodeSchema = z.object({
-  hash: z.string(),
+  hash: TxHashBytesSchema,
   isRightSibling: z.boolean(),
 });
 
@@ -113,13 +118,13 @@ export const TxScoresUpdateStatsSchema = z.object({
 export const TxScoresBatchSummarySchema = z.object({
   fixtureId: z.number(),
   updateStats: TxScoresUpdateStatsSchema,
-  eventStatsSubTreeRoot: z.string(),
+  eventStatsSubTreeRoot: TxHashBytesSchema,
 });
 
 export const TxScoresStatValidationSchema = z.object({
   ts: z.number(),
   statToProve: TxScoreStatSchema,
-  eventStatRoot: z.string(),
+  eventStatRoot: TxHashBytesSchema,
   summary: TxScoresBatchSummarySchema,
   statProof: TxListProofNodeSchema,
   subTreeProof: TxListProofNodeSchema,
