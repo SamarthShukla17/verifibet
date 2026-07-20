@@ -31,33 +31,32 @@
  *
  * ## Normalization choices — what's real data vs. what's this module's own
  *
- * - `path` and everything under `meta.proof` are TxLINE's own real proof
- *   hashes, hex-encoded — genuine cryptographic data, unmodified.
- * - `leaf` is **not** independently confirmed to match TxLINE's own
- *   internal leaf-hashing algorithm (undisclosed — the API starts the
- *   real proof chain one level up, at the stat's *siblings*, not at a
- *   hash of the stat itself). It's a real sha256 of the stat's raw
- *   `{key, value, period}` pre-image, computed here purely so the proof
- *   tree (`scripts/fetch-proof.ts`) has something hash-shaped to render
- *   as the tree's leaf node — not a claim that this bit-for-bit matches
- *   what TxLINE's own program hashes internally.
- * - `root` is `summary.eventStatsSubTreeRoot` — the last explicitly-named
- *   real root value the API returns, one Merkle level below the true
- *   on-chain-anchored root (`daily_scores_roots`, which `mainTreeProof`
- *   proves up to but which the API never returns as a named value —
- *   it's implied by the proof, not stated). Deliberately **not**
- *   independently recomputed by walking `mainTreeProof`: doing that
- *   correctly requires the exact hash function and sibling-combination
- *   convention, neither of which is documented, and a wrong guess that
- *   happens to *look* like a valid hash would be worse than not
- *   attempting it — the real, deployed `validate_stat` program is the
- *   actual authority on whether a proof is valid, not this script.
+ * - `leaf`, `path`, and `root` are now all real, verifiable data —
+ *   `lib/txline/verify.ts` empirically determined and cross-confirmed
+ *   TxLINE's leaf-hashing algorithm and sibling-combination rule against
+ *   this exact `proof.sample.json` (Borsh-LE-encode `{key, value,
+ *   period}` -> sha256 -> leaf; combine with each proof node via
+ *   `isRightSibling`-ordered concat -> sha256). `leafHash` below uses
+ *   that confirmed algorithm; see `verify.ts`'s module doc comment for
+ *   the full derivation and passing test vector.
+ * - `root` is `summary.eventStatsSubTreeRoot`, and `path` is
+ *   *exactly* `statProof` then `subTreeProof` — deliberately **not**
+ *   including `mainTreeProof`, even though it's a real part of TxLINE's
+ *   proof chain (see `meta.proof.mainTree`). Combining `path` with
+ *   `mainTreeProof` climbs one Merkle level *past* `root` to the true
+ *   on-chain-anchored value (`daily_scores_roots`) — which TxLINE's API
+ *   never returns as a named field to check against, only implies. Since
+ *   `verifyProof(leaf, path, root)` needs `path` to climb to *exactly*
+ *   `root` for a correct proof to verify `true`, `path`/`root` here are
+ *   kept as the one sub-chain that's actually a self-consistent,
+ *   checkable pair. `mainTreeProof` is real data, not discarded — it's
+ *   just not part of what this module calls "the" provable path.
  */
-import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { getScores, getValidationProof } from "@/lib/txline/client";
 import { readThrough, PROOF_TTL_SECONDS } from "@/lib/cache";
+import { hashLeaf, type ProofStep } from "@/lib/txline/verify";
 import type { TxProofNode, TxScoresStatValidation } from "@/lib/txline/types";
 
 export type StatKind = "FT_RESULT";
@@ -72,23 +71,20 @@ const STAT_KIND_KEYS: Record<StatKind, { statKey: number; statKey2: number }> = 
  * see `resolve_market.rs`'s `FULL_TIME_PERIOD`. */
 const FULL_TIME_PERIOD = 100;
 
-export interface ProofNodeHex {
-  hash: string;
-  isRightSibling: boolean;
-}
-
 export interface NormalizedProof {
   fixtureId: number;
   statKind: StatKind;
   /** Signed goal difference, home - away — exactly what `resolve_market.rs`'s
    * `Subtract` op + outcome predicate evaluate on-chain. */
   value: number;
-  /** sha256 hex of the home stat's raw pre-image — display-only, see the
-   * module doc comment's "Normalization choices" section. */
+  /** hex leaf hash of the home stat's pre-image — see `lib/txline/verify.ts`'s
+   * `hashLeaf` for the (empirically confirmed, not assumed) algorithm. */
   leaf: string;
-  /** The real proof chain, hex-encoded, leaf-to-root order: statProof,
-   * then subTreeProof, then mainTreeProof (the home stat's chain). */
-  path: string[];
+  /** The real proof chain, `statProof` then `subTreeProof` — feed this and
+   * `leaf` into `lib/txline/verify.ts`'s `verifyProof` and it recomputes to
+   * exactly `root`. Deliberately excludes `mainTreeProof`; see the module
+   * doc comment's "Normalization choices" section for why. */
+  path: ProofStep[];
   /** `summary.eventStatsSubTreeRoot`, hex — see the module doc comment
    * for why this isn't the final on-chain-anchored root. */
   root: string;
@@ -104,10 +100,10 @@ export interface NormalizedProof {
     eventStatRoot: string;
     eventStatsSubTreeRoot: string;
     proof: {
-      stat: ProofNodeHex[];
-      stat2: ProofNodeHex[];
-      subTree: ProofNodeHex[];
-      mainTree: ProofNodeHex[];
+      stat: ProofStep[];
+      stat2: ProofStep[];
+      subTree: ProofStep[];
+      mainTree: ProofStep[];
     };
     /** The full, untouched raw response — for anything this normalized
      * shape doesn't happen to expose. */
@@ -119,12 +115,8 @@ function toHex(bytes: number[]): string {
   return Buffer.from(bytes).toString("hex");
 }
 
-function toProofNodeHex(nodes: TxProofNode[]): ProofNodeHex[] {
+function toProofSteps(nodes: TxProofNode[]): ProofStep[] {
   return nodes.map((n) => ({ hash: toHex(n.hash), isRightSibling: n.isRightSibling }));
-}
-
-function leafHash(stat: { key: number; value: number; period: number }): string {
-  return createHash("sha256").update(JSON.stringify(stat)).digest("hex");
 }
 
 /** Exported for `lib/txline/proofs.test.ts` — pure, no network/fs/cache
@@ -140,14 +132,10 @@ export function normalize(fixtureId: number, statKind: StatKind, seq: number, ra
 
   const home = raw.statToProve;
   const away = raw.statToProve2;
-  const homeLeaf = leafHash(home);
-  const awayLeaf = leafHash(away);
+  const homeLeaf = hashLeaf(home);
+  const awayLeaf = hashLeaf(away);
 
-  const path = [
-    ...toProofNodeHex(raw.statProof),
-    ...toProofNodeHex(raw.subTreeProof),
-    ...toProofNodeHex(raw.mainTreeProof),
-  ].map((n) => n.hash);
+  const path = [...toProofSteps(raw.statProof), ...toProofSteps(raw.subTreeProof)];
 
   return {
     fixtureId,
@@ -165,10 +153,10 @@ export function normalize(fixtureId: number, statKind: StatKind, seq: number, ra
       eventStatRoot: toHex(raw.eventStatRoot),
       eventStatsSubTreeRoot: toHex(raw.summary.eventStatsSubTreeRoot),
       proof: {
-        stat: toProofNodeHex(raw.statProof),
-        stat2: toProofNodeHex(raw.statProof2 ?? []),
-        subTree: toProofNodeHex(raw.subTreeProof),
-        mainTree: toProofNodeHex(raw.mainTreeProof),
+        stat: toProofSteps(raw.statProof),
+        stat2: toProofSteps(raw.statProof2 ?? []),
+        subTree: toProofSteps(raw.subTreeProof),
+        mainTree: toProofSteps(raw.mainTreeProof),
       },
       raw,
     },

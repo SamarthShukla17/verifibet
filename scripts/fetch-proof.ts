@@ -12,7 +12,8 @@ if (existsSync(".env.local")) {
   process.loadEnvFile(".env.local");
 }
 
-import { fetchProof, type NormalizedProof, type ProofNodeHex } from "@/lib/txline/proofs";
+import { fetchProof, type NormalizedProof } from "@/lib/txline/proofs";
+import type { ProofStep } from "@/lib/txline/verify";
 import { getFixtures } from "@/lib/txline/client";
 
 const TOURNAMENT_START_EPOCH_DAY = 20_632; // see scripts/sync-markets.ts
@@ -38,7 +39,7 @@ function truncateHash(hex: string, head = 12, tail = 8): string {
   return `${hex.slice(0, head)}…${hex.slice(-tail)}`;
 }
 
-function siblingLines(nodes: ProofNodeHex[], indent: string): string[] {
+function siblingLines(nodes: ProofStep[], indent: string): string[] {
   return nodes.map(
     (n, i) =>
       `${indent}${i === nodes.length - 1 ? "└─" : "├─"} ${truncateHash(n.hash)} ${n.isRightSibling ? "▸ right" : "◂ left "}`,

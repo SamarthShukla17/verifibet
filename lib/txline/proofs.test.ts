@@ -26,16 +26,20 @@ describe("proofs.normalize — real captured proof.sample.json (Brazil v Norway,
 
     expect(proof.root).toMatch(/^[0-9a-f]{64}$/);
     expect(proof.leaf).toMatch(/^[0-9a-f]{64}$/);
-    for (const hex of proof.path) expect(hex).toMatch(/^[0-9a-f]{64}$/);
+    for (const step of proof.path) expect(step.hash).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it("flattens path as statProof + subTreeProof + mainTreeProof, leaf-to-root order", () => {
+  it("flattens path as statProof + subTreeProof only, leaf-to-root order — NOT mainTreeProof", () => {
     const raw = proofSample as TxScoresStatValidation;
     const proof = normalize(18187298, "FT_RESULT", 1100, raw);
 
-    expect(proof.path.length).toBe(
-      raw.statProof.length + raw.subTreeProof.length + raw.mainTreeProof.length,
-    );
+    // path/root must be a self-consistent, directly checkable pair for
+    // verifyProof — mainTreeProof climbs one level past `root`
+    // (summary.eventStatsSubTreeRoot) to a value TxLINE never names, so
+    // it's excluded from `path` even though it's real data (still
+    // available under meta.proof.mainTree). See proofs.ts's module doc
+    // comment and lib/txline/verify.ts.
+    expect(proof.path.length).toBe(raw.statProof.length + raw.subTreeProof.length);
     expect(proof.meta.proof.stat.length).toBe(raw.statProof.length);
     expect(proof.meta.proof.stat2.length).toBe(raw.statProof2!.length);
     expect(proof.meta.proof.subTree.length).toBe(raw.subTreeProof.length);
