@@ -24,9 +24,10 @@
  *   ET-prep, ET1, ET-half, ET2, post-ET, pens-prep, pens, post-pens,
  *   finished). `1` -> `SCHEDULED`, `100` -> `FINISHED`, everything else
  *   observed -> `LIVE`. Checked *after* `Action === "game_finalised"`,
- *   though, not on its own — see `fixtureStatusFromScore`'s doc comment
- *   for a real gap this closes (TxLINE sometimes omits `StatusId`
- *   entirely on the very event that means the match just ended).
+ *   though, not on its own — see `fixtureStatusFromActionAndStatusId`'s
+ *   doc comment for a real gap this closes (TxLINE sometimes omits
+ *   `StatusId` entirely on the very event that means the match just
+ *   ended).
  *
  * `TxScore.GameState` (the *string* field, confusingly shaped the same
  * as `TxFixture`'s but a different type) is **not** used for status at
@@ -120,21 +121,30 @@ function fixtureStatusFromGameState(gameState: number | undefined): FixtureStatu
 const KNOWN_LIVE_STATUS_IDS = new Set([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
 
 /**
- * `raw.Action === "game_finalised"` is checked *before* `StatusId` —
- * TxLINE inconsistently omits `StatusId` entirely on that action (real,
+ * `action === "game_finalised"` is checked *before* `statusId` — TxLINE
+ * inconsistently omits `StatusId` entirely on that action (real,
  * confirmed by comparing all three golden fixtures at the repo root:
  * Brazil v Norway's and Argentina v Cape Verde's `game_finalised` events
  * both carry `StatusId: 100`, but Paraguay v Germany's carries no
  * `StatusId` key at all). Without this override, that fixture's
  * genuinely-finished final event would fall through to the `undefined ->
  * SCHEDULED` default and misreport a decided match as not yet started.
- * `Action` itself has no such gap — every real fixture's finalizing event
+ * `action` itself has no such gap — every real fixture's finalizing event
  * uses the literal string `"game_finalised"`, always.
+ *
+ * Exported (not just used internally by `toScoreEvent`) because
+ * `lib/txline/statusTracker.ts` needs the exact same mapping applied to
+ * the scores-stream envelope fields on *every* frame, including the many
+ * `Action`s that carry no `Score` data at all and so never reach
+ * `toScoreEvent` — status tracking can't miss those, only the score
+ * value can be legitimately absent. Single source of truth either way.
  */
-function fixtureStatusFromScore(raw: TxScore): FixtureStatus {
-  if (raw.Action === "game_finalised") return "FINISHED";
+export function fixtureStatusFromActionAndStatusId(
+  action: string,
+  statusId: number | undefined,
+): FixtureStatus {
+  if (action === "game_finalised") return "FINISHED";
 
-  const statusId = raw.StatusId;
   if (statusId === undefined) return "SCHEDULED";
   if (statusId === 1) return "SCHEDULED";
   if (statusId === 100) return "FINISHED";
@@ -252,7 +262,7 @@ export function toScoreEvent(raw: TxScore): ScoreEvent | null {
     homePens: home.pens,
     awayPens: away.pens,
     minute: raw.Clock ? Math.floor(raw.Clock.Seconds / 60) : undefined,
-    status: fixtureStatusFromScore(raw),
+    status: fixtureStatusFromActionAndStatusId(raw.Action, raw.StatusId),
   };
 }
 
