@@ -1,16 +1,17 @@
 "use client"
 
-import { useTheme } from "next-themes"
 import { Toaster as Sonner } from "sonner"
 
 type ToasterProps = React.ComponentProps<typeof Sonner>
 
+// One dark theme, no switcher (see app/globals.css) — Sonner has its own
+// independent light/dark styling unrelated to our CSS vars, so it needs
+// to be told explicitly rather than left on "system" (which would follow
+// the OS's color scheme and mismatch an otherwise all-dark app).
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
-
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
+      theme="dark"
       className="toaster group"
       toastOptions={{
         classNames: {
