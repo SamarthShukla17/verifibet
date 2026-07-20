@@ -122,3 +122,54 @@ export interface TxScore {
   Parti1State?: unknown;
   Parti2State?: unknown;
 }
+
+/**
+ * GET /api/scores/stat-validation (legacy mode) response shapes — the
+ * Merkle proof chain (stat -> fixture sub-tree -> daily batch root) needed
+ * to CPI into TxLINE's `validate_stat` (see
+ * `anchor/programs/verifibet/src/instructions/resolve_market.rs`). Not
+ * documented in CLAUDE.md/NOTES.md at the time this was written — found by
+ * fetching `https://txline-dev.txodds.com/docs/docs.yaml` directly, since
+ * neither the fixtures/odds/scores endpoints already documented there cover
+ * proof data. Field names are camelCase here (this is TxLINE's off-chain
+ * REST wire format), unlike the snake_case Rust `ScoreStat`/`StatTerm`
+ * types the on-chain CPI consumes — same underlying data, different layer.
+ */
+export interface TxProofNode {
+  /** Base64-encoded 32-byte hash (OpenAPI `format: binary`). */
+  hash: string;
+  isRightSibling: boolean;
+}
+
+export interface TxScoreStat {
+  key: number;
+  value: number;
+  period: number;
+}
+
+export interface TxScoresUpdateStats {
+  updateCount: number;
+  minTimestamp: number;
+  maxTimestamp: number;
+}
+
+export interface TxScoresBatchSummary {
+  fixtureId: number;
+  updateStats: TxScoresUpdateStats;
+  /** Base64-encoded 32-byte hash. */
+  eventStatsSubTreeRoot: string;
+}
+
+/** GET /api/scores/stat-validation — legacy mode (`statKey`/`statKey2`). */
+export interface TxScoresStatValidation {
+  ts: number;
+  statToProve: TxScoreStat;
+  /** Base64-encoded 32-byte hash. */
+  eventStatRoot: string;
+  summary: TxScoresBatchSummary;
+  statProof: TxProofNode[];
+  subTreeProof: TxProofNode[];
+  mainTreeProof: TxProofNode[];
+  statToProve2?: TxScoreStat;
+  statProof2?: TxProofNode[];
+}
