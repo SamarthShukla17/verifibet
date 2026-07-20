@@ -102,7 +102,17 @@ export interface Receipt {
   explorerUrl: string;
   proofRoot: string;
   proofLeaf: string;
-  proofPath: string[];
+  /**
+   * `{hash, isRightSibling}[]`, not plain hex strings — sidedness isn't
+   * optional information for `lib/txline/verify.ts`'s `verifyProof` (a
+   * sorted-pair rule that wouldn't need it was tried and empirically
+   * rejected; see that module's doc comment). Matches
+   * `lib/txline/verify.ts`'s `ProofStep` shape exactly — imported there
+   * rather than redeclared, since `lib/types.ts` doesn't otherwise depend
+   * on `lib/txline/*`; kept structural here (not a re-export) to avoid an
+   * unusual reverse import for a types-only file.
+   */
+  proofPath: { hash: string; isRightSibling: boolean }[];
   verifiedLocally: boolean;
   resolvedAt: number;
 }
