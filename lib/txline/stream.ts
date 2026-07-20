@@ -23,7 +23,7 @@
 import { EventEmitter } from "node:events";
 import { txlineFetch } from "@/lib/txline/http";
 import { TxOddsSchema, TxScoreSchema } from "@/lib/txline/schemas";
-import type { TxOdds, TxScore } from "@/lib/txline/types";
+import { toOddsSnapshot, toScoreEvent } from "@/lib/txline/normalize";
 import type { OddsSnapshot, ScoreEvent } from "@/lib/types";
 
 /** One parsed SSE frame — the unit `Source.connect()` yields. */
@@ -183,12 +183,17 @@ export class NetworkSource implements Source {
 export type StreamKind = "odds" | "scores";
 
 /**
- * `'status'` is deliberately **not** `FixtureStatus`-typed. TxScore's
- * `StatusId` codes are undocumented (see NOTES.md) and there's no
- * reliable way to map them to `SCHEDULED`/`LIVE`/`FINISHED`/`POSTPONED`/
- * `CANCELLED` yet — this carries the raw envelope fields verbatim so a
- * caller can make its own judgment call until the real normalizer (task
- * 3.3) exists to replace this event's shape with `FixtureStatus`.
+ * `'status'` is deliberately **not** `FixtureStatus`-typed, even though
+ * `lib/txline/normalize.ts` now has a real `TxScore.StatusId` ->
+ * `FixtureStatus` mapping (`toScoreEvent`'s `status` field uses it). This
+ * event exists for a different case: it fires on *every* scores-stream
+ * frame, including the many `Action`s that carry no `Score` data at all
+ * (`kickoff_team`, `lineups`, ...) and so never produce a `'score'` event
+ * — a caller that only wants "did anything happen for this fixture" needs
+ * the raw envelope regardless of whether `Score` was present. Carries the
+ * raw fields verbatim rather than just `FixtureStatus` so a caller can
+ * still see the underlying `action`/`statusId` a normalized value would
+ * throw away.
  */
 export interface RawStatusEvent {
   fixtureId: number;
@@ -202,89 +207,6 @@ export interface TxlineStreamEvents {
   odds: OddsSnapshot;
   score: ScoreEvent;
   status: RawStatusEvent;
-}
-
-const HOME_LABELS = new Set(["home", "1", "team1", "participant1"]);
-const DRAW_LABELS = new Set(["draw", "x"]);
-const AWAY_LABELS = new Set(["away", "2", "team2", "participant2"]);
-
-/**
- * Maps a full-time 1X2 `OddsPayload` to the domain `OddsSnapshot`.
- *
- * **Unverified against a real captured payload.** TxLINE's OpenAPI spec
- * types `PriceNames` as a bare `string[]` (no enum/examples);
- * `odds.sample.json` is a real-but-empty response (see NOTES.md); and a
- * live probe of `/api/odds/stream` during this session (~5 minutes, both
- * fixture-filtered and unfiltered) only ever produced heartbeats — no
- * live odds activity happened to occur in that window. This is a
- * best-effort match against common label conventions
- * (`Home`/`Draw`/`Away`, `1`/`X`/`2`, ...), restricted to markets with
- * exactly 3 outcomes; returns `null` (frame dropped, nothing emitted) for
- * anything else — including a genuine 1X2 market whose labels don't match
- * any convention tried here — rather than guessing. Re-verify against a
- * real captured `OddsPayload` before trusting this in the demo.
- */
-function toOddsSnapshot(raw: TxOdds): OddsSnapshot | null {
-  if (raw.PriceNames.length !== 3 || raw.Prices.length !== 3) return null;
-
-  const indexFor = (labels: Set<string>) =>
-    raw.PriceNames.findIndex((name) => labels.has(name.trim().toLowerCase()));
-
-  const homeIdx = indexFor(HOME_LABELS);
-  const drawIdx = indexFor(DRAW_LABELS);
-  const awayIdx = indexFor(AWAY_LABELS);
-  if (homeIdx === -1 || drawIdx === -1 || awayIdx === -1) return null;
-
-  // "1953" = 1.953 (see TxOdds.Prices in types.ts).
-  const decimalOdds = (scaled: number) => scaled / 1000;
-  const impliedPct = (idx: number) => {
-    const pct = raw.Pct[idx];
-    return pct === "NA" ? 0 : Number(pct);
-  };
-
-  return {
-    fixtureId: raw.FixtureId,
-    home: decimalOdds(raw.Prices[homeIdx]),
-    draw: decimalOdds(raw.Prices[drawIdx]),
-    away: decimalOdds(raw.Prices[awayIdx]),
-    impliedPct: [impliedPct(homeIdx), impliedPct(drawIdx), impliedPct(awayIdx)],
-    ts: raw.Ts,
-  };
-}
-
-/**
- * Maps a scores-stream `Scores` record to the domain `ScoreEvent` — only
- * when the frame actually carries a full-time goal count for both sides
- * (`Score.Participant{1,2}.Total.Goals`); most raw score-stream frames
- * don't (see NOTES.md: most `Action`s only carry `Corners`, not `Goals`,
- * on `Total`), and there's nothing honest to emit for those, so they're
- * dropped rather than backfilled with a fabricated `0`.
- *
- * `status` uses a narrow, fact-based heuristic (not TxScore's undocumented
- * `StatusId`): `Action === "game_finalised"` is a real, observed literal
- * (see scores.sample.json) `-> FINISHED`; anything else carrying goals is
- * necessarily `LIVE` (a finished-and-decided match wouldn't still be
- * pushing live score-stream frames). Never produces `SCHEDULED`/
- * `POSTPONED`/`CANCELLED` — those need the real normalizer (task 3.3).
- */
-function toScoreEvent(raw: TxScore): ScoreEvent | null {
-  const score = raw.Score as
-    | {
-        Participant1?: { Total?: { Goals?: number } };
-        Participant2?: { Total?: { Goals?: number } };
-      }
-    | undefined;
-  const home = score?.Participant1?.Total?.Goals;
-  const away = score?.Participant2?.Total?.Goals;
-  if (home === undefined || away === undefined) return null;
-
-  return {
-    fixtureId: raw.FixtureId,
-    home,
-    away,
-    minute: raw.Clock ? Math.floor(raw.Clock.Seconds / 60) : undefined,
-    status: raw.Action === "game_finalised" ? "FINISHED" : "LIVE",
-  };
 }
 
 /**
