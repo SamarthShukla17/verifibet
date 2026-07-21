@@ -164,51 +164,95 @@
 }
 
 /*
- * @solana/wallet-adapter-react-ui ships hardcoded colors (no CSS vars of its
- * own). These custom properties are ours, layered on top of its classes to
- * pull the connect button / dropdown / modal into the dark navy + emerald
- * palette instead of the default Solana purple.
+ * @solana/wallet-adapter-react-ui ships hardcoded colors (no CSS vars of
+ * its own) — a stock purple "Connect" CTA, a near-black modal that
+ * doesn't match --card, and system-font headings, all instantly readable
+ * as "a third-party widget dropped into the page". Wired directly to the
+ * same tokens every other surface in the app uses (--card, --primary,
+ * --border, --font-display, ...) rather than a separate approximated
+ * palette, so the modal is actually first-party, not just close to it.
  */
-:root {
-  --wallet-bg: 30 41 59; /* slate-800 */
-  --wallet-bg-hover: 51 65 85; /* slate-700 */
-  --wallet-border: 6 95 70; /* emerald-800 */
-  --wallet-accent: 16 185 129; /* emerald-500 */
-  --wallet-accent-hover: 52 211 153; /* emerald-400 */
-  --wallet-text: 110 231 183; /* emerald-300 */
-}
-
-.wallet-adapter-dropdown-list {
-  background: rgb(var(--wallet-bg));
-  border: 1px solid rgb(var(--wallet-border));
-}
-
-.wallet-adapter-dropdown-list-item {
-  background-color: rgb(var(--wallet-bg));
-  color: rgb(var(--wallet-text));
-}
-
-.wallet-adapter-dropdown-list-item:not([disabled]):hover {
-  background-color: rgb(var(--wallet-bg-hover));
+.wallet-adapter-modal-overlay {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
 .wallet-adapter-modal-wrapper {
-  background: rgb(var(--wallet-bg));
-}
-
-.wallet-adapter-modal-button-close {
-  background: rgb(var(--wallet-bg-hover));
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 1rem;
+  box-shadow:
+    0 8px 20px hsl(var(--background) / 0.6),
+    0 0 0 1px hsl(var(--primary) / 0.1);
 }
 
 .wallet-adapter-modal-title {
-  color: rgb(var(--wallet-text));
+  color: hsl(var(--foreground));
+  font-family: var(--font-display);
+  font-weight: 700;
 }
 
+.wallet-adapter-modal-button-close {
+  background: hsl(var(--muted));
+}
+.wallet-adapter-modal-button-close svg {
+  fill: hsl(var(--muted-foreground));
+}
+.wallet-adapter-modal-button-close:hover svg {
+  fill: hsl(var(--foreground));
+}
+
+/* Each wallet option row. */
 .wallet-adapter-modal-list .wallet-adapter-button {
-  background-color: rgb(var(--wallet-bg));
-  color: rgb(var(--wallet-text));
+  background-color: hsl(var(--secondary));
+  color: hsl(var(--foreground));
+  border: 1px solid transparent;
+}
+.wallet-adapter-modal-list .wallet-adapter-button:not([disabled]):hover {
+  background-color: hsl(var(--accent));
+  border-color: hsl(var(--primary) / 0.3);
 }
 
-.wallet-adapter-modal-list .wallet-adapter-button:not([disabled]):hover {
-  background-color: rgb(var(--wallet-bg-hover));
+.wallet-adapter-modal-list-more {
+  color: hsl(var(--muted-foreground));
+}
+.wallet-adapter-modal-list-more:hover {
+  color: hsl(var(--foreground));
+}
+.wallet-adapter-modal-list-more svg {
+  fill: hsl(var(--muted-foreground));
+}
+
+/* The "no wallet found — get one" CTA — the one place the stock purple
+   is most jarring, since it's the single most prominent button in the
+   modal for a first-time visitor. */
+.wallet-adapter-modal-middle-button {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+.wallet-adapter-modal-middle-button:hover {
+  background-color: hsl(var(--primary) / 0.9);
+}
+
+.wallet-adapter-button[disabled] {
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+}
+
+/* Connected-state dropdown (address + disconnect). */
+.wallet-adapter-dropdown-list {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+}
+
+.wallet-adapter-dropdown-list-item {
+  background-color: hsl(var(--card));
+  color: hsl(var(--foreground));
+}
+
+.wallet-adapter-dropdown-list-item:not([disabled]):hover {
+  background-color: hsl(var(--accent));
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
 import { WalletProvider } from "@/components/providers/WalletProvider";
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 // Body copy — read-heavy UI (market lists, bet history, copy).
@@ -35,6 +36,11 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body className={`${inter.variable} ${spaceGrotesk.variable} font-sans antialiased`}>
         <WalletProvider>{children}</WalletProvider>
+        {/* top-right — sonner's own fixed corner never overlaps
+            BetSlip's fixed bottom-sheet (mobile) or sticky right rail
+            (desktop), so toasts (including WalletUx's persistent
+            HelpCard) never fight it for space. */}
+        <Toaster position="top-right" />
       </body>
     </html>
   );

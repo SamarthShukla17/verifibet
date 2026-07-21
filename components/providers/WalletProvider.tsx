@@ -9,6 +9,7 @@ import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
 import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
 import { NETWORK } from "@/lib/config";
+import { WalletUx } from "@/components/providers/WalletUx";
 
 import "@solana/wallet-adapter-react-ui/styles.css";
 
@@ -26,7 +27,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   return (
     <ConnectionProvider endpoint={endpoint}>
       <SolanaWalletProvider wallets={wallets} autoConnect>
-        <WalletModalProvider>{children}</WalletModalProvider>
+        <WalletModalProvider>
+          {children}
+          <WalletUx />
+        </WalletModalProvider>
       </SolanaWalletProvider>
     </ConnectionProvider>
   );

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WalletButton } from "@/components/layout/WalletButton";
+import { NetworkGuard } from "@/components/layout/NetworkGuard";
 
 const NAV_LINKS = [
   { href: "/matches", label: "Matches" },
@@ -58,6 +59,8 @@ export function Navbar() {
           <WalletButton />
         </div>
       </div>
+
+      <NetworkGuard />
     </header>
   );
 }
