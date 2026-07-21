@@ -46,6 +46,7 @@ import {
 import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 
 import { betPda, marketPda } from "@/lib/solana/pda";
+import { formatUsdc } from "@/lib/format";
 import type { TxFixture } from "@/lib/txline/types";
 import verifibetIdl from "@/lib/solana/idl/verifibet.json";
 
@@ -264,7 +265,7 @@ async function main() {
   console.log(`  amount:      ${betAcc.amount.toString()}`);
   console.log(`  claimed:     ${betAcc.claimed}`);
   console.log(`Vault    ${vault.toBase58()}`);
-  console.log(`  balance:     ${vaultAcc.amount.toString()} (${Number(vaultAcc.amount) / 1_000_000} USDC)`);
+  console.log(`  balance:     ${vaultAcc.amount.toString()} (${formatUsdc(vaultAcc.amount)} USDC)`);
 
   console.log("\n--- Explorer links ---");
   console.log(`Program: ${explorerAddress(program.programId.toBase58())}`);

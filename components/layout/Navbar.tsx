@@ -6,6 +6,7 @@ import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WalletButton } from "@/components/layout/WalletButton";
 import { NetworkGuard } from "@/components/layout/NetworkGuard";
+import { BalanceChip } from "@/components/layout/BalanceChip";
 
 const NAV_LINKS = [
   { href: "/matches", label: "Matches" },
@@ -55,7 +56,8 @@ export function Navbar() {
           })}
         </nav>
 
-        <div className="shrink-0">
+        <div className="flex shrink-0 items-center gap-3">
+          <BalanceChip />
           <WalletButton />
         </div>
       </div>

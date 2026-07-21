@@ -22,3 +22,19 @@ export const CLUSTER: Cluster =
   (process.env.NEXT_PUBLIC_CLUSTER as Cluster | undefined) ?? "devnet";
 
 export const NETWORK = CONFIG[CLUSTER];
+
+/**
+ * Circle's real devnet USDC-Dev mint — deliberately distinct from
+ * `CONFIG.devnet.usdcMint` above, which resolves to this project's own
+ * mock mint once `NEXT_PUBLIC_USDC_MINT` is set (see README.md's "Plan
+ * notes"; it currently is set, in `.env.local`). Every `Market` that
+ * exists on devnet today was initialized *before* that mock-mint pivot
+ * and is permanently pinned to this mint instead — a `Market.usdc_mint`
+ * can't change after `initialize_market` — confirmed by a real on-chain
+ * read, not assumed (see NOTES.md). Circle's faucet only ever funds this
+ * mint, so anywhere the app needs "how much USDC can this wallet
+ * actually bet with right now" (the navbar balance chip, WalletUx's
+ * no-funds nudge), this constant — not `CONFIG.devnet.usdcMint` — is the
+ * one that answers honestly.
+ */
+export const CIRCLE_DEVNET_USDC_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
