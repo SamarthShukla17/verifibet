@@ -56,5 +56,10 @@
     "tsx": "^4.23.1",
     "typescript": "^5",
     "vitest": "^2.1.9"
+  },
+  "pnpm": {
+    "overrides": {
+      "uuid": "^9.0.1"
+    }
   }
 }
