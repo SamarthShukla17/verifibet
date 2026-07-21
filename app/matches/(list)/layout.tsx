@@ -5,7 +5,7 @@ import { FilterRailUrlSync } from "@/components/market/FilterRailUrlSync";
 /**
  * Navbar, filter rail, and footer live here rather than in page.tsx so
  * they stay mounted (stable, non-flashing) across the Suspense boundary
- * `app/matches/loading.tsx` creates around page.tsx's async data fetch —
+ * `app/matches/(list)/loading.tsx` creates around page.tsx's async data fetch —
  * only the match list + bet slip inside `{children}` show a skeleton
  * while fixtures load; the chrome around them never does.
  */

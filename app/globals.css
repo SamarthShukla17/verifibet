@@ -109,6 +109,58 @@
       0 0 0 1px hsl(var(--primary) / 0.4),
       0 0 24px 4px hsl(var(--primary) / 0.25);
   }
+
+  /*
+   * Slowly-rotating conic-gradient ring around a LIVE match header —
+   * `padding: 1px` + the mask-composite `exclude` trick draws only the
+   * 1px ring itself (not a filled background), and `@property --angle`
+   * lets that gradient's rotation be animated at all (a plain
+   * `background-position` shift can't rotate a `conic-gradient`'s angle;
+   * `@property` is what makes `--angle` an interpolatable custom
+   * property instead of an opaque string). "Subtle" is doing real work
+   * here — low opacity, restrained hues pulled straight from the
+   * existing --destructive/--primary/--accent-gold tokens, never a
+   * generic rainbow. Graceful no-JS-needed degradation on a browser
+   * without `@property` support (pre-2023 Firefox): `--angle` just stays
+   * at its `initial-value`, so the ring renders static instead of
+   * spinning — never broken, never invisible.
+   */
+  .live-gradient-border {
+    position: relative;
+  }
+  .live-gradient-border::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: conic-gradient(
+      from var(--angle),
+      hsl(var(--destructive) / 0.7),
+      hsl(var(--accent-gold) / 0.5),
+      hsl(var(--primary) / 0.6),
+      hsl(var(--destructive) / 0.7)
+    );
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: live-border-spin 6s linear infinite;
+    pointer-events: none;
+  }
+}
+
+@property --angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes live-border-spin {
+  to {
+    --angle: 360deg;
+  }
 }
 
 /*

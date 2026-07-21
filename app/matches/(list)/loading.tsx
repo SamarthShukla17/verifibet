@@ -6,7 +6,7 @@ import { MatchCardSkeleton } from "@/components/market/MatchCardSkeleton";
  * fetch is in flight — on first load and on every filter change (each
  * one re-renders the Server Component against the new `searchParams`).
  * Navbar/FilterRail/Footer stay mounted throughout (they live in
- * app/matches/layout.tsx, outside this boundary); only the match list +
+ * app/matches/(list)/layout.tsx, outside this boundary); only the match list +
  * bet slip shown here.
  */
 export default function MatchesLoading() {

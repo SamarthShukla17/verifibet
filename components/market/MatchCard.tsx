@@ -6,17 +6,8 @@ import { formatUsdc } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { MarketStatusBadge } from "@/components/market/MarketStatusBadge";
 import { OddsDisplay } from "@/components/market/OddsDisplay";
-import type { Fixture, FixtureStage, MarketStatus, OddsSnapshot, Outcome } from "@/lib/types";
-
-const STAGE_LABELS: Record<FixtureStage, string> = {
-  GROUP: "Group Stage",
-  R32: "Round of 32",
-  R16: "Round of 16",
-  QF: "Quarterfinal",
-  SF: "Semifinal",
-  THIRD: "3rd Place",
-  FINAL: "Final",
-};
+import { STAGE_LABELS } from "@/lib/market";
+import type { Fixture, MarketStatus, OddsSnapshot, Outcome } from "@/lib/types";
 
 function formatKickoff(kickoffTs: number): string {
   // No explicit `timeZone` — Intl defaults to the runtime's own, which in

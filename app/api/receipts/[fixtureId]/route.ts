@@ -26,40 +26,17 @@
  * untyped object literal directly lets it structurally check against
  * whatever `AnchorProvider`'s constructor really wants.
  * `runtime = "nodejs"` since `@coral-xyz/anchor` isn't edge-compatible.
+ *
+ * `getReadOnlyProgram` itself now lives in lib/solana/program.ts — this
+ * was the first read-only call site, extracted out once a fourth
+ * (app/api/markets/[fixtureId]/route.ts) needed the exact same thing.
  */
 import { NextResponse } from "next/server";
-import * as anchor from "@coral-xyz/anchor";
-import { Connection, Keypair, PublicKey, type Transaction, type VersionedTransaction } from "@solana/web3.js";
 import { buildReceipt, ReceiptNotAvailableError } from "@/lib/receipts";
-import { CONFIG } from "@/lib/config";
-import verifibetIdl from "@/lib/solana/idl/verifibet.json";
+import { getReadOnlyProgram } from "@/lib/solana/program";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function readOnlyWallet(keypair: Keypair) {
-  return {
-    publicKey: keypair.publicKey,
-    signTransaction: async <T extends Transaction | VersionedTransaction>(tx: T) => tx,
-    signAllTransactions: async <T extends Transaction | VersionedTransaction>(txs: T[]) => txs,
-  };
-}
-
-// Same construction pattern as scripts/devnet-e2e.ts and
-// scripts/sync-markets.ts, minus the real wallet those need for signing
-// — this is the first read-only call site; worth extracting into a
-// shared lib/solana/ helper if a fourth one appears (the keeper,
-// Session 6.4, likely will).
-function getReadOnlyProgram(): anchor.Program {
-  const connection = new Connection(CONFIG.devnet.rpcUrl, "confirmed");
-  const provider = new anchor.AnchorProvider(connection, readOnlyWallet(Keypair.generate()), {
-    commitment: "confirmed",
-  });
-  const programId = new PublicKey(
-    process.env.NEXT_PUBLIC_PROGRAM_ID ?? "CCrrc5cdohor1EGGFkrQ3yKUS3zU9tnU2uzxWRnd2PMw",
-  );
-  return new anchor.Program({ ...(verifibetIdl as anchor.Idl), address: programId.toBase58() }, provider);
-}
 
 export async function GET(
   _request: Request,

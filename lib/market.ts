@@ -1,14 +1,26 @@
 /**
  * Matches-page domain logic — filters (URL-shareable), fixture-status ->
  * market-status mapping, and the live/upcoming-by-day/earlier grouping
- * used by app/matches/page.tsx. Pure and framework-agnostic (no "use
+ * used by app/matches/(list)/page.tsx. Pure and framework-agnostic (no "use
  * client", no I/O) so it's testable without rendering anything (see
  * market.test.ts) and safely importable from both the Server Component
  * (page.tsx) and client pieces (FilterRailUrlSync, MatchesBoard) without
  * any client/server ambiguity.
  */
-import type { FixtureStatus, MarketStatus } from "@/lib/types";
+import type { FixtureStage, FixtureStatus, MarketStatus } from "@/lib/types";
 import type { TrackedFixture } from "@/lib/txline/statusTracker";
+
+/** Shared with MatchCard.tsx and MatchHeader.tsx — one label per stage
+ * code, kept here once both needed it rather than duplicated. */
+export const STAGE_LABELS: Record<FixtureStage, string> = {
+  GROUP: "Group Stage",
+  R32: "Round of 32",
+  R16: "Round of 16",
+  QF: "Quarterfinal",
+  SF: "Semifinal",
+  THIRD: "3rd Place",
+  FINAL: "Final",
+};
 
 export const GROUPS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"] as const;
 export const KNOCKOUT_STAGE_VALUES = ["R32", "R16", "QF", "SF", "FINAL"] as const;

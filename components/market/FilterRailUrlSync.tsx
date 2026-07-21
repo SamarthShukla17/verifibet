@@ -9,7 +9,7 @@ import { marketFiltersToSearchParams, parseMarketFilters, type MarketFilters } f
  * URL — the single source of truth for filter state (see lib/market.ts's
  * `parseMarketFilters`/`marketFiltersToSearchParams`), so a filtered view
  * is always a shareable link (`?stage=QF&status=open`) and the
- * server-rendered `app/matches/page.tsx` (which reads the same
+ * server-rendered `app/matches/(list)/page.tsx` (which reads the same
  * `searchParams`) never disagrees with what this widget displays. No local
  * `filters` state here on purpose — `useSearchParams()` already reflects
  * the current URL on every render, so there's nothing to keep in sync.

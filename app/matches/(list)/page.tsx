@@ -1,20 +1,7 @@
-import { headers } from "next/headers";
 import { MatchesBoard } from "@/components/market/MatchesBoard";
 import { organizeMatches, parseMarketFilters } from "@/lib/market";
+import { getBaseUrl } from "@/lib/baseUrl";
 import type { TrackedFixture } from "@/lib/txline/statusTracker";
-
-/** `fetch` needs an absolute URL even for our own route — there's no env
- * var for this yet (see CLAUDE.md), so derive it from the incoming
- * request's own `Host` header, same as any reverse-proxied Next app has
- * to. `x-forwarded-proto` covers the common "behind a proxy that
- * terminates TLS" deployment shape; falling back to `http` matches local
- * dev, where that header is never set. */
-function getBaseUrl(): string {
-  const h = headers();
-  const host = h.get("host") ?? "localhost:3000";
-  const protocol = h.get("x-forwarded-proto") ?? "http";
-  return `${protocol}://${host}`;
-}
 
 function toParamsGetter(searchParams: { [key: string]: string | string[] | undefined }) {
   return {

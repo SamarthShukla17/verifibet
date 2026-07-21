@@ -38,6 +38,7 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 import type { Program } from "@coral-xyz/anchor";
 import { marketPda } from "@/lib/solana/pda";
+import { MARKET_ACCOUNT_IDL_NAME } from "@/lib/solana/program";
 import { fetchProof } from "@/lib/txline/proofs";
 import { verifyProof } from "@/lib/txline/verify";
 import type { Outcome, Receipt } from "@/lib/types";
@@ -53,7 +54,7 @@ import type { Outcome, Receipt } from "@/lib/types";
 // with the raw JSON's exact "verifibet::state::Market" throws "Account
 // not found" even though that string is right there in `idl.accounts` —
 // it just isn't the string the coder was actually built to look up.
-const MARKET_ACCOUNT_IDL_NAME = "verifibet::state::market";
+// (See lib/solana/program.ts, the shared constant this re-exports from.)
 
 /** How many of the market's most recent signatures to scan for the
  * resolve transaction — generous for a real market's actual lifecycle
