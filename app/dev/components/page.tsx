@@ -36,12 +36,21 @@ function SectionHeading({ title, description }: { title: string; description?: s
  */
 const NOW_TS = Math.floor(new Date("2026-07-21T12:00:00Z").getTime() / 1000);
 
+// GROUP stage specifically (not a knockout stage) — the one fixture wired
+// to matchSelection/betSlipSelection below, so this gallery's interactive
+// demo can actually exercise a Draw pick and the BetSlip's "the match is a
+// draw" phrasing. The three static (non-interactive) cards further down
+// are all knockout stages (THIRD/R32/FINAL/R16) and now correctly render
+// only two OddsDisplay tiles each — a free, incidental demonstration of
+// the KO market rule (see lib/market.ts#isKnockoutStage) alongside this
+// one 3-outcome GROUP example.
 const FIXTURE_OPEN: Fixture = {
   fixtureId: 18257865,
   home: "France",
   away: "England",
   kickoffTs: NOW_TS + 3 * 86_400,
-  stage: "THIRD",
+  stage: "GROUP",
+  group: "A",
   status: "SCHEDULED",
 };
 
@@ -217,7 +226,7 @@ export default function DevComponentsPage() {
           <section>
             <SectionHeading
               title="MatchCard"
-              description="Flags, kickoff in viewer tz, stage chip, three OddsDisplay, status badge, pool footer. Click an outcome below to populate the Bet Slip."
+              description="Flags, kickoff in viewer tz, stage chip, status badge, pool footer. Click an outcome on the GROUP-stage card to populate the Bet Slip — the three knockout-stage cards (THIRD/R32/FINAL/R16) show only two OddsDisplay tiles each, no Draw, per the KO market rule."
             />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <MatchCard
@@ -257,14 +266,20 @@ export default function DevComponentsPage() {
           </section>
         </main>
 
-        {/* BetSlip — fixed bottom-sheet under lg, sticky right rail at lg+ */}
+        {/* BetSlip — fixed bottom-sheet under lg, sticky right rail at lg+.
+            `onSubmit` mocks a ~1s confirm here (no real wallet/tx in this
+            gallery) so the hold-to-confirm -> success -> confetti flow is
+            still visually testable without needing devnet at all. */}
         <aside className="lg:w-80 lg:shrink-0">
           <BetSlip
             selection={betSlipSelection}
             pools={pools}
+            marketStatus="OPEN"
+            kickoffTs={FIXTURE_OPEN.kickoffTs}
+            balance={500_000_000n}
             amount={betAmount}
             onAmountChange={setBetAmount}
-            onSubmit={() => alert("Shell only — no place_bet wiring yet.")}
+            onSubmit={() => new Promise((resolve) => setTimeout(() => resolve("MockSignature111111"), 800))}
           />
         </aside>
       </div>

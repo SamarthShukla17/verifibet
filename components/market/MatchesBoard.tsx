@@ -7,8 +7,10 @@ import { MatchCard } from "@/components/market/MatchCard";
 import { LiveMatchCard } from "@/components/market/LiveMatchCard";
 import { BetSlip, type BetSlipSelection } from "@/components/bet/BetSlip";
 import { Button } from "@/components/ui/button";
-import type { OrganizedMatches, MarketEntry } from "@/lib/market";
-import type { Outcome } from "@/lib/types";
+import { useMarketAccount } from "@/lib/hooks/useMarketAccount";
+import { usePlaceBet } from "@/lib/hooks/usePlaceBet";
+import { marketStatusFromFixtureStatus, type OrganizedMatches, type MarketEntry } from "@/lib/market";
+import type { MarketStatus, Outcome } from "@/lib/types";
 
 interface Selection {
   fixtureId: number;
@@ -105,6 +107,31 @@ export function MatchesBoard({ organized }: MatchesBoardProps) {
         }
       : null;
 
+  // Fetched only for the currently-selected fixture (`0` — a deliberate
+  // no-op fixtureId, see useMarketAccount's own doc comment — until
+  // something's picked), not for every card in the grid: this list view
+  // otherwise has no per-fixture on-chain reads at all (see EntryCard's
+  // `totalPoolBaseUnits={0n}` above), so this is the one place real
+  // pools/status/usdc_mint enter the picture, exactly when the slip
+  // actually needs them.
+  const { market, refresh: refreshMarket } = useMarketAccount(selection?.fixtureId ?? 0);
+  const { balance, balanceLoading, placeBet } = usePlaceBet(market, refreshMarket);
+
+  const pools: [bigint, bigint, bigint] =
+    market?.synced && market.pools
+      ? [BigInt(market.pools[0]), BigInt(market.pools[1]), BigInt(market.pools[2])]
+      : [0n, 0n, 0n];
+
+  const marketStatus: MarketStatus =
+    market?.synced && market.status
+      ? (market.status.toUpperCase() as MarketStatus)
+      : marketStatusFromFixtureStatus(selectedEntry?.fixture.status ?? "SCHEDULED");
+
+  async function handleSubmit(): Promise<string> {
+    if (selection === null) throw new Error("no outcome selected");
+    return placeBet(selection.fixtureId, selection.outcome, betAmount);
+  }
+
   return (
     <>
       <main className="min-w-0 flex-1 pb-24 lg:pb-0">
@@ -171,10 +198,14 @@ export function MatchesBoard({ organized }: MatchesBoardProps) {
       <aside className="lg:w-80 lg:shrink-0">
         <BetSlip
           selection={betSlipSelection}
-          pools={[0n, 0n, 0n]}
+          pools={pools}
+          marketStatus={marketStatus}
+          kickoffTs={selectedEntry?.fixture.kickoffTs ?? 0}
+          balance={balance}
+          balanceLoading={balanceLoading}
           amount={betAmount}
           onAmountChange={setBetAmount}
-          onSubmit={() => alert("Shell only — no place_bet wiring yet.")}
+          onSubmit={handleSubmit}
         />
       </aside>
     </>

@@ -26,6 +26,19 @@ export const GROUPS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L
 export const KNOCKOUT_STAGE_VALUES = ["R32", "R16", "QF", "SF", "FINAL"] as const;
 export const STATUS_VALUES: readonly MarketStatus[] = ["OPEN", "LOCKED", "RESOLVED", "VOIDED"];
 
+/**
+ * The KO market rule: every stage except GROUP can't end in a draw (extra
+ * time + penalties always produce a winner), so those markets only ever
+ * offer two outcomes — home/away, no Draw. Deliberately `stage !== "GROUP"`
+ * rather than reusing `KNOCKOUT_STAGE_VALUES` (that list backs the matches-
+ * page stage *filter* dropdown and omits "THIRD" since the 3rd-place
+ * playoff doesn't get its own filter tab — but it's still a knockout match
+ * with no possible draw, so it must count here).
+ */
+export function isKnockoutStage(stage: FixtureStage): boolean {
+  return stage !== "GROUP";
+}
+
 export type StageFilter =
   | "ALL"
   | `GROUP_${(typeof GROUPS)[number]}`

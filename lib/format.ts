@@ -40,3 +40,20 @@ export function parseUsdc(input: string): bigint | null {
   const [whole, fraction = ""] = trimmed.split(".");
   return BigInt(whole) * 1_000_000n + BigInt(fraction.padEnd(6, "0"));
 }
+
+/**
+ * `formatUsdc`'s *other* inverse — a controlled-input value, not a
+ * display string. Never comma-grouped (unlike `formatUsdc`, whose commas
+ * `parseUsdc` deliberately rejects) and trims trailing fractional zeros,
+ * so a MAX-balance quick-chip round-trips straight back through
+ * `parseUsdc` for any balance, not just the sub-1000 range `formatUsdc`
+ * itself round-trips over (see format.test.ts's own round-trip test).
+ */
+export function usdcToInputValue(baseUnits: bigint): string {
+  const whole = baseUnits / 1_000_000n;
+  const fraction = baseUnits % 1_000_000n;
+  if (fraction === 0n) return whole.toString();
+
+  const fractionStr = fraction.toString().padStart(6, "0").replace(/0+$/, "");
+  return `${whole.toString()}.${fractionStr}`;
+}

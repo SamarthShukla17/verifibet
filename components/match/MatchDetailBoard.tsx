@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLiveFixture } from "@/lib/hooks/useLiveFixture";
 import { useMarketAccount } from "@/lib/hooks/useMarketAccount";
+import { usePlaceBet } from "@/lib/hooks/usePlaceBet";
 import { fixtureStatusFromActionAndStatusId } from "@/lib/txline/normalize";
-import { marketStatusFromFixtureStatus } from "@/lib/market";
+import { isKnockoutStage, marketStatusFromFixtureStatus } from "@/lib/market";
 import { MatchHeader } from "@/components/match/MatchHeader";
 import { OddsChart } from "@/components/OddsChart";
 import { OddsDisplay } from "@/components/market/OddsDisplay";
@@ -46,7 +47,7 @@ export function MatchDetailBoard({
   initialScore,
 }: MatchDetailBoardProps) {
   const live = useLiveFixture(fixtureId);
-  const { market, loading: marketLoading } = useMarketAccount(fixtureId);
+  const { market, loading: marketLoading, refresh: refreshMarket } = useMarketAccount(fixtureId);
 
   // Starts from the server-fetched status and upgrades live as real
   // status-stream events arrive — the same mapping the tracker itself
@@ -87,11 +88,16 @@ export function MatchDetailBoard({
 
   const bettingDisabled = marketStatus !== "OPEN" || odds === null;
 
-  const outcomes: { outcome: Outcome; label: string; odds: number; impliedPct: number; delta?: number }[] = [
+  // The KO market rule (see lib/market.ts#isKnockoutStage): every stage but
+  // GROUP always produces a winner (extra time + penalties), so a
+  // knockout fixture's market never has a Draw outcome to pick at all —
+  // not just a disabled tile, it isn't offered.
+  const allOutcomes: { outcome: Outcome; label: string; odds: number; impliedPct: number; delta?: number }[] = [
     { outcome: 0, label: home, odds: odds?.home ?? 0, impliedPct: odds?.impliedPct[0] ?? 0, delta: deltas.home },
     { outcome: 1, label: "Draw", odds: odds?.draw ?? 0, impliedPct: odds?.impliedPct[1] ?? 0, delta: deltas.draw },
     { outcome: 2, label: away, odds: odds?.away ?? 0, impliedPct: odds?.impliedPct[2] ?? 0, delta: deltas.away },
   ];
+  const outcomes = isKnockoutStage(stage) ? allOutcomes.filter((o) => o.outcome !== 1) : allOutcomes;
 
   const betSlipSelection: BetSlipSelection | null =
     selection !== null
@@ -102,6 +108,13 @@ export function MatchDetailBoard({
     market?.synced && market.pools
       ? [BigInt(market.pools[0]), BigInt(market.pools[1]), BigInt(market.pools[2])]
       : [0n, 0n, 0n];
+
+  const { balance, balanceLoading, placeBet } = usePlaceBet(market, refreshMarket);
+
+  async function handlePlaceBet(): Promise<string> {
+    if (selection === null) throw new Error("no outcome selected");
+    return placeBet(fixtureId, selection.outcome, betAmount);
+  }
 
   return (
     <div className="space-y-6">
@@ -159,9 +172,13 @@ export function MatchDetailBoard({
           <BetSlip
             selection={betSlipSelection}
             pools={pools}
+            marketStatus={marketStatus}
+            kickoffTs={kickoffTs}
+            balance={balance}
+            balanceLoading={balanceLoading}
             amount={betAmount}
             onAmountChange={setBetAmount}
-            onSubmit={() => alert("Shell only — full place_bet wiring lands in Phase 5.")}
+            onSubmit={handlePlaceBet}
           />
         </aside>
       </div>

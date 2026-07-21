@@ -73,11 +73,16 @@ const config: Config = {
   			'flash-ruby': {
   				'0%': { backgroundColor: 'hsl(var(--destructive) / 0.35)' },
   				'100%': { backgroundColor: 'hsl(var(--destructive) / 0)' }
+  			},
+  			'confetti-fall': {
+  				'0%': { transform: 'translateY(0) rotate(0deg)', opacity: '1' },
+  				'100%': { transform: 'translateY(110px) rotate(340deg)', opacity: '0' }
   			}
   		},
   		animation: {
   			'flash-emerald': 'flash-emerald 600ms ease-out',
-  			'flash-ruby': 'flash-ruby 600ms ease-out'
+  			'flash-ruby': 'flash-ruby 600ms ease-out',
+  			'confetti-fall': 'confetti-fall 900ms ease-out forwards'
   		}
   	}
   },

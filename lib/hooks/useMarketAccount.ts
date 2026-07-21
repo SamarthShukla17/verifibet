@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 export interface MarketAccountResponse {
   synced: boolean;
@@ -14,6 +14,9 @@ export interface MarketAccountResponse {
   totalPool?: string;
   resolvedAt?: number;
   bettorCount?: number;
+  /** Base58 — see lib/solana/market.ts's `MarketAccountData.usdcMint` doc
+   * comment. Needed by BetSlip to build a real `place_bet` transaction. */
+  usdcMint?: string;
 }
 
 const POLL_INTERVAL_MS = 15_000;
@@ -25,33 +28,55 @@ const POLL_INTERVAL_MS = 15_000;
  * good value on screen rather than clearing it to a loading/error state —
  * a stale-but-real number beats a blank one for something that only
  * changes when someone places a bet.
+ *
+ * `fixtureId <= 0` skips fetching entirely (`synced: false`, no request
+ * ever made) rather than hitting `/api/markets/0` and getting back a 400 —
+ * a real, deliberate call shape for a page like MatchesBoard.tsx that
+ * calls this hook unconditionally (React's rules of hooks) even before
+ * the viewer has picked a fixture to bet on yet.
  */
 export function useMarketAccount(fixtureId: number) {
   const [data, setData] = useState<MarketAccountResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const poll = useCallback(async () => {
+    if (fixtureId <= 0) {
+      setData({ synced: false });
+      setLoading(false);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/markets/${fixtureId}`, { cache: "no-store" });
+      const json: MarketAccountResponse = await res.json();
+      setData(json);
+    } catch {
+      // keep last-known-good value — see doc comment above
+    } finally {
+      setLoading(false);
+    }
+  }, [fixtureId]);
+
   useEffect(() => {
     let cancelled = false;
 
-    async function poll() {
-      try {
-        const res = await fetch(`/api/markets/${fixtureId}`, { cache: "no-store" });
-        const json: MarketAccountResponse = await res.json();
-        if (!cancelled) setData(json);
-      } catch {
-        // keep last-known-good value — see doc comment above
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+    async function pollOnce() {
+      if (cancelled) return;
+      await poll();
     }
 
-    void poll();
-    const interval = setInterval(poll, POLL_INTERVAL_MS);
+    void pollOnce();
+    if (fixtureId <= 0) return;
+    const interval = setInterval(pollOnce, POLL_INTERVAL_MS);
     return () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [fixtureId]);
+  }, [poll, fixtureId]);
 
-  return { market: data, loading };
+  // Exposed so a just-confirmed `place_bet` can refresh the pool panel
+  // immediately rather than waiting up to POLL_INTERVAL_MS for the next
+  // scheduled tick — the on-chain data is already there the moment
+  // `sendAndConfirm` resolves, no reason to make the UI look stale for up
+  // to 15s after a bet a viewer just watched land.
+  return { market: data, loading, refresh: poll };
 }

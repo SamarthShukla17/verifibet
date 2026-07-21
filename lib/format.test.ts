@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatUsdc, parseUsdc } from "@/lib/format";
+import { formatUsdc, parseUsdc, usdcToInputValue } from "@/lib/format";
 
 describe("formatUsdc", () => {
   it("zero", () => {
@@ -79,5 +79,25 @@ describe("parseUsdc", () => {
     expect(parseUsdc("5")).toBe(5_000_000n);
     expect(parseUsdc("5.5")).toBe(5_500_000n);
     expect(parseUsdc("0.000001")).toBe(1n);
+  });
+});
+
+describe("usdcToInputValue", () => {
+  it("never comma-groups, unlike formatUsdc — round-trips through parseUsdc for a large balance", () => {
+    const huge = 1_234_567_890_000n; // 1,234,567.89 USDC
+    const input = usdcToInputValue(huge);
+    expect(input).not.toContain(",");
+    expect(parseUsdc(input)).toBe(huge);
+  });
+
+  it("trims trailing fractional zeros", () => {
+    expect(usdcToInputValue(25_000_000n)).toBe("25");
+    expect(usdcToInputValue(25_500_000n)).toBe("25.5");
+    expect(usdcToInputValue(0n)).toBe("0");
+  });
+
+  it("round-trips a MAX-chip balance through parseUsdc exactly, for a sub-cent amount too", () => {
+    expect(parseUsdc(usdcToInputValue(1n))).toBe(1n);
+    expect(parseUsdc(usdcToInputValue(9_999n))).toBe(9_999n);
   });
 });

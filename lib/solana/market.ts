@@ -23,6 +23,14 @@ export interface MarketAccountData {
   fixtureId: number;
   status: Lowercase<MarketStatus>;
   outcome: Outcome | null;
+  /** Base58 — the mint `place_bet` must pass as its own `usdc_mint`
+   * account (re-checked on-chain against this exact field; see
+   * `VerifibetError::MintMismatch`). Read from the account itself rather
+   * than assumed to be `CIRCLE_DEVNET_USDC_MINT` — that constant
+   * describes every market that exists on devnet *today* (see
+   * lib/config.ts's doc comment), not a guarantee for markets initialized
+   * later. */
+  usdcMint: string;
   /** USDC base units per outcome (0/1/2), as decimal strings — a real
    * on-chain `u64` can exceed `Number.MAX_SAFE_INTEGER`, so this crosses
    * the server/client (and any JSON) boundary as a string, never a
@@ -55,6 +63,7 @@ export async function fetchMarketAccount(fixtureId: number): Promise<MarketAccou
     pools: [BN, BN, BN];
     totalPool: BN;
     resolvedAt: BN;
+    usdcMint: PublicKey;
   };
 
   return {
@@ -64,6 +73,7 @@ export async function fetchMarketAccount(fixtureId: number): Promise<MarketAccou
     pools: [decoded.pools[0].toString(), decoded.pools[1].toString(), decoded.pools[2].toString()],
     totalPool: decoded.totalPool.toString(),
     resolvedAt: decoded.resolvedAt.toNumber(),
+    usdcMint: decoded.usdcMint.toBase58(),
   };
 }
 

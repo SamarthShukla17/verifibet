@@ -6,7 +6,7 @@ import { formatUsdc } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { MarketStatusBadge } from "@/components/market/MarketStatusBadge";
 import { OddsDisplay } from "@/components/market/OddsDisplay";
-import { STAGE_LABELS } from "@/lib/market";
+import { isKnockoutStage, STAGE_LABELS } from "@/lib/market";
 import type { Fixture, MarketStatus, OddsSnapshot, Outcome } from "@/lib/types";
 
 function formatKickoff(kickoffTs: number): string {
@@ -58,11 +58,17 @@ export function MatchCard({
   const homeFlag = flagUrl(fixture.home);
   const awayFlag = flagUrl(fixture.away);
 
-  const outcomes: { outcome: Outcome; label: string; odds: number; impliedPct: number }[] = [
+  // KO market rule (see lib/market.ts#isKnockoutStage) — a knockout
+  // fixture's market never has a Draw outcome, so its card only ever
+  // offers two selectors, not three with the third disabled.
+  const allOutcomes: { outcome: Outcome; label: string; odds: number; impliedPct: number }[] = [
     { outcome: 0, label: fixture.home, odds: odds?.home ?? 0, impliedPct: odds?.impliedPct[0] ?? 0 },
     { outcome: 1, label: "Draw", odds: odds?.draw ?? 0, impliedPct: odds?.impliedPct[1] ?? 0 },
     { outcome: 2, label: fixture.away, odds: odds?.away ?? 0, impliedPct: odds?.impliedPct[2] ?? 0 },
   ];
+  const outcomes = isKnockoutStage(fixture.stage)
+    ? allOutcomes.filter((o) => o.outcome !== 1)
+    : allOutcomes;
 
   return (
     <div

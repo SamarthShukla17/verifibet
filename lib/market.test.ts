@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_FILTERS,
+  isKnockoutStage,
   marketFiltersToSearchParams,
   matchesFilters,
   organizeMatches,
@@ -8,6 +9,18 @@ import {
   type MarketFilters,
 } from "@/lib/market";
 import type { TrackedFixture } from "@/lib/txline/statusTracker";
+
+describe("isKnockoutStage", () => {
+  it("is false only for GROUP", () => {
+    expect(isKnockoutStage("GROUP")).toBe(false);
+  });
+
+  it("is true for every knockout stage, including THIRD (no dedicated filter tab, but still no possible draw)", () => {
+    for (const stage of ["R32", "R16", "QF", "SF", "THIRD", "FINAL"] as const) {
+      expect(isKnockoutStage(stage)).toBe(true);
+    }
+  });
+});
 
 function fixture(overrides: Partial<TrackedFixture>): TrackedFixture {
   return {
