@@ -64,6 +64,20 @@ const config: Config = {
   		fontFamily: {
   			sans: ['var(--font-body)', ...defaultTheme.fontFamily.sans],
   			display: ['var(--font-display)', ...defaultTheme.fontFamily.sans]
+  		},
+  		keyframes: {
+  			'flash-emerald': {
+  				'0%': { backgroundColor: 'hsl(var(--primary) / 0.35)' },
+  				'100%': { backgroundColor: 'hsl(var(--primary) / 0)' }
+  			},
+  			'flash-ruby': {
+  				'0%': { backgroundColor: 'hsl(var(--destructive) / 0.35)' },
+  				'100%': { backgroundColor: 'hsl(var(--destructive) / 0)' }
+  			}
+  		},
+  		animation: {
+  			'flash-emerald': 'flash-emerald 600ms ease-out',
+  			'flash-ruby': 'flash-ruby 600ms ease-out'
   		}
   	}
   },
