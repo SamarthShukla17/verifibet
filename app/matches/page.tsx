@@ -180,7 +180,7 @@ const MOCK_MARKETS: MockMarket[] = [
   },
 ];
 
-export default function Home() {
+export default function MatchesPage() {
   const [filters, setFilters] = useState<MarketFilters>(DEFAULT_FILTERS);
   const [selection, setSelection] = useState<{ fixtureId: number; outcome: Outcome } | null>(null);
   const [betAmount, setBetAmount] = useState("25");

@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { WalletButton } from "@/components/layout/WalletButton";
 
 const NAV_LINKS = [
-  { href: "/", label: "Matches" },
+  { href: "/matches", label: "Matches" },
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/bets", label: "My Bets" },
 ];
