@@ -45,7 +45,11 @@ export interface MatchCardProps {
   /** USDC base units, 6dp — total across all three outcomes. */
   totalPoolBaseUnits: bigint;
   selectedOutcome?: Outcome | null;
-  onSelectOutcome?: (outcome: Outcome) => void;
+  /** `odds` is whatever this card is currently showing for that outcome
+   * (0 for the "no data" placeholder) — passed along so a caller that has
+   * no other way to know the live-streamed odds value (see
+   * `LiveMatchCard`) can still capture it at the moment of selection. */
+  onSelectOutcome?: (outcome: Outcome, odds: number) => void;
   className?: string;
 }
 
@@ -155,7 +159,7 @@ export function MatchCard({
               impliedPct={o.impliedPct}
               selected={selectedOutcome === o.outcome}
               disabled={bettingDisabled || odds === null}
-              onSelect={() => onSelectOutcome?.(o.outcome)}
+              onSelect={() => onSelectOutcome?.(o.outcome, o.odds)}
             />
           ))}
         </div>

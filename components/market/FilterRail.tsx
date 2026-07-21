@@ -12,10 +12,11 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import type { MarketStatus } from "@/lib/types";
+import { GROUPS, type MarketFilters, type StageFilter } from "@/lib/market";
 
-const GROUPS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"] as const;
-
+// Label pairings for the UI only — the underlying values are lib/market.ts's
+// canonical `KNOCKOUT_STAGE_VALUES`/`STATUS_VALUES` (kept in sync by hand;
+// these are static tournament stage codes that don't change).
 const KNOCKOUT_STAGES = [
   { value: "R32", label: "Round of 32" },
   { value: "R16", label: "Round of 16" },
@@ -24,58 +25,12 @@ const KNOCKOUT_STAGES = [
   { value: "FINAL", label: "Final" },
 ] as const;
 
-const STATUSES: { value: MarketStatus; label: string }[] = [
+const STATUSES = [
   { value: "OPEN", label: "Open" },
   { value: "LOCKED", label: "Locked" },
   { value: "RESOLVED", label: "Resolved" },
   { value: "VOIDED", label: "Voided" },
-];
-
-export type StageFilter =
-  | "ALL"
-  | `GROUP_${(typeof GROUPS)[number]}`
-  | (typeof KNOCKOUT_STAGES)[number]["value"];
-
-export type StatusFilter = "ALL" | MarketStatus;
-
-export interface MarketFilters {
-  stage: StageFilter;
-  status: StatusFilter;
-  search: string;
-}
-
-export const DEFAULT_FILTERS: MarketFilters = {
-  stage: "ALL",
-  status: "ALL",
-  search: "",
-};
-
-/** Whether a fixture (+ its market status) passes the given filter set. */
-export function matchesFilters(
-  fixture: { home: string; away: string; stage: string; group?: string },
-  marketStatus: MarketStatus,
-  filters: MarketFilters,
-): boolean {
-  if (filters.stage !== "ALL") {
-    if (filters.stage.startsWith("GROUP_")) {
-      const group = filters.stage.slice("GROUP_".length);
-      if (fixture.stage !== "GROUP" || fixture.group !== group) return false;
-    } else if (fixture.stage !== filters.stage) {
-      return false;
-    }
-  }
-
-  if (filters.status !== "ALL" && marketStatus !== filters.status) return false;
-
-  const query = filters.search.trim().toLowerCase();
-  if (query) {
-    const home = fixture.home.toLowerCase();
-    const away = fixture.away.toLowerCase();
-    if (!home.includes(query) && !away.includes(query)) return false;
-  }
-
-  return true;
-}
+] as const;
 
 function FilterPill({
   active,

@@ -6,22 +6,7 @@ import { Button } from "@/components/ui/button";
 import { MatchCard } from "@/components/market/MatchCard";
 import { BracketView } from "@/components/BracketView";
 import { getStatusTracker, type TrackedFixture } from "@/lib/txline/statusTracker";
-import type { FixtureStatus, MarketStatus } from "@/lib/types";
-
-function marketStatusFromFixtureStatus(status: FixtureStatus): MarketStatus {
-  switch (status) {
-    case "FINISHED":
-      return "RESOLVED";
-    case "LIVE":
-      return "LOCKED";
-    case "POSTPONED":
-    case "CANCELLED":
-      return "VOIDED";
-    case "SCHEDULED":
-    default:
-      return "OPEN";
-  }
-}
+import { marketStatusFromFixtureStatus } from "@/lib/market";
 
 /**
  * "Today's" fixtures by literal same-UTC-calendar-day kickoff, falling
