@@ -153,3 +153,56 @@ export async function placeBet(program: anchor.Program, params: PlaceBetParams):
 
   return tx;
 }
+
+export interface ClaimRefundParams {
+  fixtureId: bigint;
+  /** The bet's own stored outcome — `claim_refund` takes no `outcome`
+   * argument (see `void_and_refund.rs`'s `ClaimRefund` accounts doc
+   * comment: `bet`'s seeds re-derive from its own stored `outcome`),
+   * but this client still needs it to derive the same `bet` PDA
+   * `deriveBet` expects. */
+  outcome: Outcome;
+}
+
+/**
+ * Builds a real `claim_refund` `Transaction` — exact stake back,
+ * unconditionally, once `keeper/void.ts` has voided the market (see that
+ * instruction's own doc comment: no proportional payout to compute,
+ * unlike `claim_winnings`). No idempotent ATA-create prepended here
+ * unlike `placeBet`: `user_usdc` is guaranteed to already exist by the
+ * time a `Bet` account does — `placeBet` above is the only way a `Bet`
+ * gets created, and it already ensures `user_usdc` exists in that same
+ * transaction.
+ *
+ * Every account computed explicitly via `lib/solana/pda.ts`, same
+ * "never trust Anchor's own PDA auto-resolution" reasoning as `placeBet`.
+ */
+export async function claimRefund(program: anchor.Program, params: ClaimRefundParams): Promise<Transaction> {
+  const user = program.provider.publicKey;
+  if (!user) throw new Error("Wallet not connected");
+
+  const [market] = deriveMarket(params.fixtureId);
+
+  const marketAccountClient = (program.account as Record<string, { fetch(addr: PublicKey): Promise<{ usdcMint: PublicKey }> }>)[
+    MARKET_ACCOUNT_IDL_NAME
+  ];
+  const marketAccount = await marketAccountClient.fetch(market);
+  const usdcMint = marketAccount.usdcMint;
+
+  const [bet] = deriveBet(market, user, params.outcome);
+  const userUsdc = getAssociatedTokenAddressSync(usdcMint, user);
+  const vault = deriveVault(usdcMint, market);
+
+  return program.methods
+    .claimRefund()
+    .accounts({
+      user,
+      market,
+      bet,
+      vault,
+      userUsdc,
+      usdcMint,
+      tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .transaction();
+}

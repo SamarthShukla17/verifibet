@@ -16,9 +16,11 @@
  * mid-match or already over when it restarted.
  *
  * `reconcile()` below is what closes that gap: every 60s tick, it walks
- * every tracked fixture and re-enqueues `lockMarket`/`resolveMarket` for
- * any fixture still `LIVE`/`FINISHED` — regardless of whether an event
- * fired for it this process lifetime. Enqueueing is a no-op if the job is
+ * every tracked fixture and re-enqueues `lockMarket`/`resolveMarket`/
+ * `voidMarket` for any fixture still `LIVE`/`FINISHED`/a void candidate
+ * (`keeper/void.ts#isVoidCandidate` — `POSTPONED`/`CANCELLED`, or a day
+ * past kickoff with no `FINISHED`) — regardless of whether an event fired
+ * for it this process lifetime. Enqueueing is a no-op if the job is
  * already queued (deduped by `type:fixtureId`), and `keeper/jobs.ts`'s job
  * functions each re-read the market's on-chain status *before* building
  * any transaction, so a fixture that's already `Locked`/`Resolved` is a
@@ -47,6 +49,7 @@ import { buildLogger } from "@/keeper/logger";
 import { buildKeeperContext } from "@/keeper/context";
 import { lockMarketJob, syncMarketsJob } from "@/keeper/jobs";
 import { resolveFixture } from "@/keeper/resolver";
+import { isVoidCandidate, voidMarketJob } from "@/keeper/void";
 
 const TICK_MS = 60_000;
 const SYNC_INTERVAL_MS = 60 * 60 * 1000; // hourly
@@ -57,7 +60,7 @@ const HEALTH_PORT = 8787;
 const BACKOFF_MS = [30_000, 120_000, 600_000];
 const MAX_ATTEMPTS = 5;
 
-type JobType = "lockMarket" | "resolveMarket";
+type JobType = "lockMarket" | "resolveMarket" | "voidMarket";
 
 interface QueuedJob {
   id: string;
@@ -114,7 +117,9 @@ async function main() {
       const result =
         job.type === "lockMarket"
           ? await lockMarketJob(ctx, job.fixtureId)
-          : await resolveFixture(ctx, job.fixtureId, logger);
+          : job.type === "voidMarket"
+            ? await voidMarketJob(ctx, job.fixtureId)
+            : await resolveFixture(ctx, job.fixtureId, logger);
       logger.info(
         { job: job.type, fixtureId: job.fixtureId, txSig: result.txSig, action: result.action },
         `${job.type} ${result.action}`,
@@ -159,9 +164,16 @@ async function main() {
   }
 
   function reconcile(): void {
+    const nowSeconds = Math.floor(Date.now() / 1000);
     for (const fixture of tracker.list()) {
       if (fixture.status === "LIVE") enqueue("lockMarket", fixture.fixtureId);
       else if (fixture.status === "FINISHED") enqueue("resolveMarket", fixture.fixtureId);
+      // Independent of the branch above, not `else if` — a stalled
+      // fixture the tracker still shows `LIVE` (TxLINE's feed never
+      // produced a `game_finalised` event) can be both a lock candidate
+      // and a void candidate at once; voidMarketJob only needs the
+      // market to still be Open/Locked, so enqueueing both is harmless.
+      if (isVoidCandidate(fixture, nowSeconds)) enqueue("voidMarket", fixture.fixtureId);
     }
   }
 

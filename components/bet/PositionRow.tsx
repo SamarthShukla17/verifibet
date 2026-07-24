@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Check, Clock, X } from "lucide-react";
 import { toast } from "sonner";
 import { flagUrl } from "@/lib/flags";
@@ -7,12 +8,19 @@ import { formatUsdc } from "@/lib/format";
 import { STAGE_LABELS } from "@/lib/market";
 import { Button } from "@/components/ui/button";
 import { ShareButton } from "@/components/bet/ShareButton";
+import { useClaimRefund } from "@/lib/hooks/useClaimRefund";
 import { cn } from "@/lib/utils";
 import type { Position, PositionStatus } from "@/lib/hooks/useMyBets";
 
 export interface PositionRowProps {
   position: Position;
   className?: string;
+  /** Re-fetches this wallet's positions after a refund lands — threaded
+   * down from `useMyBets()`'s own `refresh` (see `app/portfolio/page.tsx`)
+   * so a claimed refund's status flips to `claimed` without a manual
+   * reload. Optional: nothing breaks if a call site doesn't pass it,
+   * `RefundButton` just won't auto-refresh its own row afterward. */
+  onClaimed?: () => void;
 }
 
 function formatKickoff(kickoffTs: number): string {
@@ -67,18 +75,64 @@ function ClaimButton({ label }: { label: string }) {
 }
 
 /**
+ * The one real (non-placeholder) claim button in this file — sends an
+ * actual `claim_refund` transaction (`lib/hooks/useClaimRefund.ts`) and
+ * drives the same toast lifecycle every other real transaction in this
+ * app does (`sendAndConfirm`), unlike `ClaimButton` above, which is still
+ * a "Phase 6" stub for `claim_winnings`.
+ */
+function RefundButton({
+  fixtureId,
+  outcome,
+  onClaimed,
+}: {
+  fixtureId: number;
+  outcome: Position["outcome"];
+  onClaimed?: () => void;
+}) {
+  const { claimRefund } = useClaimRefund(onClaimed);
+  const [claiming, setClaiming] = useState(false);
+
+  async function handleClick() {
+    if (claiming) return;
+    setClaiming(true);
+    try {
+      await claimRefund(fixtureId, outcome);
+    } catch {
+      // sendAndConfirm already showed the error/rejection toast — nothing
+      // further to do here.
+    } finally {
+      setClaiming(false);
+    }
+  }
+
+  return (
+    <Button
+      size="sm"
+      className="bg-accent-gold text-accent-gold-foreground hover:bg-accent-gold/90"
+      onClick={() => void handleClick()}
+      disabled={claiming}
+    >
+      {claiming ? "Refunding…" : "Refund"}
+    </Button>
+  );
+}
+
+/**
  * One row in the "My Bets" list — the matchup, what was picked, the
  * stake, and whatever's most relevant about its outcome: a live "if this
  * resolved right now" estimate while `pending` (recomputed every time
  * `useMyBets` polls — see that hook's own "only while LIVE" polling
  * doc comment), or the real settled amount once the market's moved past
- * that (`won`/`claimed` in emerald, `lost` muted, `refundable`/unclaimed
- * `won` both get a gold CLAIM button — a real `<button>`, but its
- * `onClick` is a placeholder toast, not a transaction: `claim_winnings`/
- * `claim_refund` aren't wired here, that's Phase 6's job).
+ * that (`won`/`claimed` in emerald, `lost` muted, `refundable` neutral
+ * with an explicit "Match voided — full refund available" line).
+ * `refundable`'s REFUND button is real (`RefundButton`, `claim_refund`) —
+ * `won`'s CLAIM button is still a placeholder toast, `claim_winnings`
+ * isn't wired here yet.
  */
-export function PositionRow({ position, className }: PositionRowProps) {
-  const { home, away, stage, kickoffTs, fixtureStatus, pickLabel, amount, status, estPayout, payout } = position;
+export function PositionRow({ position, className, onClaimed }: PositionRowProps) {
+  const { fixtureId, home, away, stage, kickoffTs, fixtureStatus, pickLabel, outcome, amount, status, estPayout, payout } =
+    position;
   const meta = STATUS_META[status];
   const isLive = fixtureStatus === "LIVE";
 
@@ -108,6 +162,9 @@ export function PositionRow({ position, className }: PositionRowProps) {
           <TeamFlag name={pickLabel} />
           {pickLabel}
         </span>
+        {status === "refundable" && (
+          <p className="mt-2 text-xs font-medium text-muted-foreground">Match voided — full refund available</p>
+        )}
       </div>
 
       <div className="mt-3 flex items-end justify-between gap-3 border-t border-border pt-3">
@@ -141,9 +198,7 @@ export function PositionRow({ position, className }: PositionRowProps) {
               {payout !== null ? formatUsdc(payout) : "—"} USDC
             </p>
           </div>
-        ) : (
-          // won (unclaimed) / refundable — both claimable, both get the
-          // gold CLAIM button.
+        ) : status === "refundable" ? (
           <div className="flex items-center gap-3">
             <div className="text-right">
               <p className={cn("text-[11px] uppercase tracking-wide", meta.className)}>{meta.label}</p>
@@ -151,7 +206,19 @@ export function PositionRow({ position, className }: PositionRowProps) {
                 {payout !== null ? formatUsdc(payout) : "—"} USDC
               </p>
             </div>
-            <ClaimButton label={status === "refundable" ? "Claim refund" : "Claim"} />
+            <RefundButton fixtureId={fixtureId} outcome={outcome} onClaimed={onClaimed} />
+          </div>
+        ) : (
+          // won, unclaimed — still a placeholder toast; claim_winnings
+          // isn't wired here yet.
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <p className={cn("text-[11px] uppercase tracking-wide", meta.className)}>{meta.label}</p>
+              <p className={cn("tabular text-sm font-bold", meta.className)}>
+                {payout !== null ? formatUsdc(payout) : "—"} USDC
+              </p>
+            </div>
+            <ClaimButton label="Claim" />
           </div>
         )}
       </div>

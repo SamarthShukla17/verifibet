@@ -96,12 +96,14 @@ function PositionsList({
   positions,
   tab,
   onConnect,
+  onClaimed,
 }: {
   connected: boolean;
   loading: boolean;
   positions: Position[] | null;
   tab: PortfolioTab;
   onConnect: () => void;
+  onClaimed: () => void;
 }) {
   if (!connected) return <ConnectPrompt onConnect={onConnect} />;
 
@@ -120,7 +122,7 @@ function PositionsList({
   return (
     <>
       {filtered.map((position) => (
-        <PositionRow key={position.betPda} position={position} />
+        <PositionRow key={position.betPda} position={position} onClaimed={onClaimed} />
       ))}
     </>
   );
@@ -138,7 +140,7 @@ function PositionsList({
 export default function PortfolioPage() {
   const { connected } = useWallet();
   const { setVisible: setWalletModalVisible } = useWalletModal();
-  const { positions, loading } = useMyBets();
+  const { positions, loading, refresh } = useMyBets();
   const [tab, setTab] = useState<PortfolioTab>("active");
   const [claimAllProgress, setClaimAllProgress] = useState<{ current: number; total: number } | null>(null);
 
@@ -234,6 +236,7 @@ export default function PortfolioPage() {
                 positions={positions}
                 tab={t.value}
                 onConnect={() => setWalletModalVisible(true)}
+                onClaimed={refresh}
               />
             </TabsContent>
           ))}
