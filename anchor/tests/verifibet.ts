@@ -488,6 +488,15 @@ describe("verifibet", () => {
     it("a losing bet fails to claim with NotWinningBet", async () => {
       await expectVerifibetError(claimWinnings({ market, user: userB, outcome: 1 }), "NotWinningBet");
     });
+
+    it("claim_refund on a Resolved (never voided) market fails with MarketNotVoided", async () => {
+      // userB's bet was never claimed (it lost) and never refunded (this
+      // market was resolved, not voided) — claim_refund must still reject
+      // it purely on market.status, checked before anything about the bet
+      // itself (see void_and_refund.rs: MarketNotVoided is asserted before
+      // AlreadyClaimed).
+      await expectVerifibetError(claimRefund({ market, user: userB, outcome: 1 }), "MarketNotVoided");
+    });
   });
 
   describe("void + refund lifecycle", () => {
@@ -511,6 +520,10 @@ describe("verifibet", () => {
       await expectVerifibetError(voidMarket({ market }), "TooEarlyToVoid");
     });
 
+    it("claim_refund before the market is voided (still Open) fails with MarketNotVoided", async () => {
+      await expectVerifibetError(claimRefund({ market, user: userA, outcome: 0 }), "MarketNotVoided");
+    });
+
     it("void + refund returns every bettor's exact stake", async () => {
       // Now past kickoff + 3s grace.
       await sleep(3500);
@@ -528,6 +541,18 @@ describe("verifibet", () => {
       await claimRefund({ market, user: userB, outcome: 1 });
       const afterB = await userUsdcBalance(userB.publicKey);
       expect(afterB - beforeB).to.equal(30_000000n);
+    });
+
+    it("double refund fails with AlreadyClaimed", async () => {
+      await expectVerifibetError(claimRefund({ market, user: userA, outcome: 0 }), "AlreadyClaimed");
+    });
+
+    it("claim_winnings on a Voided market fails with MarketNotResolved", async () => {
+      // userA's bet is already refunded (bet.claimed == true) at this
+      // point, but claim_winnings must reject on market.status alone,
+      // checked before anything about the bet — see claim_winnings.rs:
+      // MarketNotResolved is asserted before NotWinningBet/AlreadyClaimed.
+      await expectVerifibetError(claimWinnings({ market, user: userA, outcome: 0 }), "MarketNotResolved");
     });
   });
 
@@ -568,6 +593,50 @@ describe("verifibet", () => {
       expect(vaultAcc.amount < winnersCount, `dust ${vaultAcc.amount} should be < ${winnersCount} winners`).to.equal(
         true
       );
+    });
+
+    it("void + refund: 3 users x 2 outcomes drains the vault to exactly 0, no dust", async () => {
+      // Unlike claim_winnings' proportional, floor-rounded payout (the
+      // case above — dust is expected there), a refund is always the
+      // bettor's exact stake back with no division at all: sum of every
+      // refund equals the total pool exactly, so once every bettor has
+      // claimed, the vault must be *exactly* empty, not just "less than
+      // one unit per claimant".
+      const fixtureId = freshFixtureId();
+      const kickoffTs = Math.floor(Date.now() / 1000) + 2;
+      const { market, vault } = await initMarket({ fixtureId, kickoffTs });
+
+      // 3 users, 2 outcomes (0 and 1 — Draw/outcome 2 untouched).
+      await placeBet({ market, user: userA, outcome: 0, amount: 40_000000 });
+      await placeBet({ market, user: userB, outcome: 1, amount: 25_000000 });
+      await placeBet({ market, user: userC, outcome: 0, amount: 35_000000 });
+
+      // Past kickoff (+2s) + the (test-mock-txline-shrunk) 3s void grace
+      // period, with margin.
+      await sleep(5500);
+      await voidMarket({ market });
+
+      const marketAcc = await marketAccount.fetch(market);
+      expect(statusKey(marketAcc.status)).to.equal("voided");
+      expect(marketAcc.totalPool.toNumber()).to.equal(100_000000);
+
+      const beforeA = await userUsdcBalance(userA.publicKey);
+      await claimRefund({ market, user: userA, outcome: 0 });
+      const afterA = await userUsdcBalance(userA.publicKey);
+      expect(afterA - beforeA).to.equal(40_000000n);
+
+      const beforeB = await userUsdcBalance(userB.publicKey);
+      await claimRefund({ market, user: userB, outcome: 1 });
+      const afterB = await userUsdcBalance(userB.publicKey);
+      expect(afterB - beforeB).to.equal(25_000000n);
+
+      const beforeC = await userUsdcBalance(userC.publicKey);
+      await claimRefund({ market, user: userC, outcome: 0 });
+      const afterC = await userUsdcBalance(userC.publicKey);
+      expect(afterC - beforeC).to.equal(35_000000n);
+
+      const vaultAcc = await getAccount(connection, vault);
+      expect(vaultAcc.amount).to.equal(0n);
     });
   });
 });
