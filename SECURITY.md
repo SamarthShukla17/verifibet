@@ -120,6 +120,52 @@ period it exists to enforce.
 No new error variant needed — `MathOverflow` already exists and is exactly
 right.
 
+## Off-chain invariant: knockout markets never resolve to a draw
+
+**Not an on-chain constraint — deliberately.** `InvalidOutcome` (`errors.rs`)
+only checks `outcome < 3`; `resolve_market` itself accepts `outcome == 1`
+for *any* market, knockout or group stage, with no program-level
+distinction between them. The rule that a knockout fixture's market can
+never actually settle to a draw is enforced entirely off-chain, in exactly
+one place: `lib/txline/normalize.ts#deriveOutcome`. For any stage other
+than `GROUP`, `deriveOutcome` compares `home`/`away` (FT+ET goals) first,
+and — critically — never returns `1` on its own: a tie at that point falls
+through to the penalty-shootout comparison (`homePens`/`awayPens`), which
+is a strict `>`/`<` with no equal case; a genuinely tied penalty count
+(`homePens === awayPens`) throws rather than returning a draw, since a
+completed real-world shootout can never actually end level. There is no
+code path in `deriveOutcome` that can produce `1` for a non-`GROUP` stage —
+confirmed by the real Paraguay–Germany penalty-shootout golden vector
+(`lib/txline/normalize.test.ts`: FT+ET tied 1-1, Paraguay advances 4-3 on
+pens, `deriveOutcome(score, "R32")` returns `2`, never `1`) — not merely
+asserted by reading the branches.
+
+**Why this is still safe without a program-level guard:** `keeper/resolver.ts`
+calls `deriveOutcome` exactly once and submits its result verbatim to
+`resolve_market` — see that file's own doc comment ("the ONE function,
+never recompute here") and its proof/outcome cross-check, which refuses to
+submit *anything* (not a fallback draw, not an override) when the TxLINE
+Merkle proof's own FT+ET goal difference doesn't corroborate `deriveOutcome`'s
+answer. The keeper never constructs an `outcome` argument any other way,
+so `outcome == 1` for a knockout fixture is not just rare, it is
+unreachable through the only code path that ever calls `resolve_market`
+with real data. The frontend independently reinforces the same invariant
+one layer up, for a different reason (clarity, not security):
+`lib/market.ts#isKnockoutStage` + `isKnockoutStage(stage)` filtering in
+`MatchDetailBoard.tsx`/`MatchCard.tsx` mean a knockout market's Draw tile
+is never even offered to a bettor, so no on-chain `Bet` at `outcome == 1`
+can exist for a knockout fixture in the first place — `resolve_market`
+settling one to a draw would have no bets to pay out on that side even in
+a hypothetical where it happened.
+
+**What this means for anyone extending the program later**: if a future
+change ever lets a caller other than this codebase's own keeper invoke
+`resolve_market` (e.g. a permissionless resolution path), this invariant
+would need to move on-chain — `require!(!(is_knockout && outcome == 1), ...)`
+— since it currently depends entirely on the keeper being the only honest
+caller. Flagged here so that trust-boundary shift doesn't get missed if it
+ever happens.
+
 ## What wasn't touched, and why
 
 - **`kickoff_ts` still has no upper bound at `initialize_market`.** Once F2

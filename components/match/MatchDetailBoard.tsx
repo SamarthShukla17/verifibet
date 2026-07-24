@@ -9,6 +9,7 @@ import { isKnockoutStage, marketStatusFromFixtureStatus } from "@/lib/market";
 import { MatchHeader } from "@/components/match/MatchHeader";
 import { OddsChart } from "@/components/OddsChart";
 import { OddsDisplay } from "@/components/market/OddsDisplay";
+import { InfoTooltip } from "@/components/InfoTooltip";
 import { PoolPanel } from "@/components/match/PoolPanel";
 import { ActivityTab } from "@/components/match/ActivityTab";
 import { VerificationTab } from "@/components/match/VerificationTab";
@@ -146,9 +147,19 @@ export function MatchDetailBoard({
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px] lg:items-start">
         <div className="min-w-0 space-y-6">
           <section>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Market
-            </p>
+            <div className="mb-2 flex items-center gap-1.5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Market
+              </p>
+              {isKnockoutStage(stage) && (
+                <>
+                  <span className="text-[11px] text-muted-foreground">
+                    Includes extra time &amp; penalties — no draw
+                  </span>
+                  <InfoTooltip text="Knockout matches always produce a winner. If the score is level after 90 minutes, extra time and then a penalty shootout decide who advances — this market has no Draw outcome." />
+                </>
+              )}
+            </div>
             <div className="flex gap-2">
               {outcomes.map((o) => (
                 <OddsDisplay

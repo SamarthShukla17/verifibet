@@ -7,6 +7,22 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 - IDL is published on-chain (`anchor idl init`) — introspectable directly
   from the program address, no local IDL file required.
 
+## Market rules
+
+- **Group stage** markets are a plain 1X2: home / draw / away.
+- **Knockout stage** markets (Round of 32 through the Final, including the
+  3rd-place playoff) are **two-outcome, "who advances"** — home / away
+  only, no Draw. A knockout match always produces a winner: if the score
+  is level after 90 minutes, extra time and then a penalty shootout decide
+  who advances, so a draw is never a real settlement outcome for one of
+  these markets. This is enforced in exactly one place —
+  `lib/txline/normalize.ts#deriveOutcome` — and the frontend mirrors it by
+  never offering a Draw tile on a knockout fixture's market
+  (`lib/market.ts#isKnockoutStage`). See `SECURITY.md`'s "Off-chain
+  invariant: knockout markets never resolve to a draw" for the full
+  reasoning and the golden test vector (Paraguay 4-3 Germany on penalties,
+  after a 1-1 FT+ET draw) that pins it down.
+
 ## Plan notes
 
 - Devnet demo uses a 6dp mock USDC mint (`NEXT_PUBLIC_USDC_MINT` in

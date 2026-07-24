@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Info } from "lucide-react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { HoldToConfirmButton } from "@/components/bet/HoldToConfirmButton";
 import { ConfettiBurst } from "@/components/bet/ConfettiBurst";
+import { InfoTooltip } from "@/components/InfoTooltip";
 import { estimatePayout } from "@/lib/parimutuel";
 import { formatUsdc, parseUsdc, usdcToInputValue } from "@/lib/format";
 import { explorerTxUrl } from "@/lib/explorer";
@@ -46,21 +46,6 @@ function formatKickoffTime(kickoffTs: number): string {
   // line, not a header.
   return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hour12: false }).format(
     new Date(kickoffTs * 1000),
-  );
-}
-
-function InfoTooltip({ text }: { text: string }) {
-  return (
-    <span tabIndex={0} className="group/tip relative inline-flex outline-none">
-      <Info className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-      <span className="sr-only">{text}</span>
-      <span
-        role="tooltip"
-        className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-44 -translate-x-1/2 rounded-md border border-border bg-popover px-2.5 py-1.5 text-center text-[11px] leading-snug text-popover-foreground opacity-0 shadow-lg transition-opacity duration-150 group-hover/tip:opacity-100 group-focus-visible/tip:opacity-100"
-      >
-        {text}
-      </span>
-    </span>
   );
 }
 
