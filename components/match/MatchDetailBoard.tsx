@@ -176,7 +176,7 @@ export function MatchDetailBoard({
               <ActivityTab fixtureId={fixtureId} home={home} away={away} />
             </TabsContent>
             <TabsContent value="verification">
-              <VerificationTab />
+              <VerificationTab fixtureId={fixtureId} />
             </TabsContent>
           </Tabs>
         </div>
