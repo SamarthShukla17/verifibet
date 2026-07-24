@@ -153,7 +153,20 @@ export function fixtureStatusFromActionAndStatusId(
   return "SCHEDULED";
 }
 
-/** GET /api/fixtures/snapshot entry -> domain `Fixture`. */
+/**
+ * GET /api/fixtures/snapshot entry -> domain `Fixture`. Deliberately
+ * doesn't set `Fixture.isDemo` here even though it could (a demo fixture
+ * is identifiable purely from `FixtureId` — see
+ * `lib/txline/demoScenarios.ts#isDemoFixtureId`): that check does real
+ * `readFileSync` I/O, and this module is imported at runtime by at least
+ * one client component (`MatchDetailBoard.tsx`, for
+ * `fixtureStatusFromActionAndStatusId`) — pulling `node:fs` in here broke
+ * the client bundle outright (confirmed the hard way: `UnhandledSchemeError:
+ * Reading from "node:fs"` from webpack). `isDemo` is set one layer up
+ * instead, in `lib/txline/statusTracker.ts#hydrate` — server-only by
+ * actual enforced usage (only `app/api/fixtures/route.ts` and
+ * `keeper/index.ts` ever call it at runtime), not just by convention.
+ */
 export function toFixture(raw: TxFixture): Fixture {
   const home = raw.Participant1IsHome ? raw.Participant1 : raw.Participant2;
   const away = raw.Participant1IsHome ? raw.Participant2 : raw.Participant1;

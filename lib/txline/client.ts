@@ -27,6 +27,7 @@ import {
   TxScoresStatValidationSchema,
 } from "@/lib/txline/schemas";
 import { readThrough, FIXTURES_TTL_SECONDS, ODDS_TTL_SECONDS, PROOF_TTL_SECONDS } from "@/lib/cache";
+import { findScenarioByDemoFixtureId, isDemoFixtureId, isDemoModeEnabled, loadDemoScenarios } from "@/lib/txline/demoScenarios";
 import type { z } from "zod";
 
 const ONE_DAY_SECONDS = 86_400;
@@ -122,9 +123,20 @@ export async function getFixtures(
     fetchFixtures(params),
   );
 
-  if (params.to === undefined) return fixtures;
-  const toMs = params.to * 1000;
-  return fixtures.filter((f) => f.StartTime <= toMs);
+  const filtered =
+    params.to === undefined
+      ? fixtures
+      : fixtures.filter((f) => f.StartTime <= params.to! * 1000);
+
+  // Demo fixtures are appended after the cached fetch + `to` filter, not
+  // baked into either — see the module doc comment's reasoning for `to`
+  // itself; a demo scenario isn't real TxLINE data with a real place in
+  // that date window, and hiding it because a caller's `from`/`to` didn't
+  // happen to cover it would undercut "visible in every frame" (see
+  // components/DemoReplayBanner.tsx). Real fixtures always still come
+  // through unchanged alongside it — this only ever adds, never replaces.
+  if (!isDemoModeEnabled()) return filtered;
+  return [...filtered, ...loadDemoScenarios().map((s) => s.fixture)];
 }
 
 async function fetchFixtures(params: GetFixturesParams): Promise<TxFixture[]> {
@@ -154,6 +166,9 @@ async function fetchFixtures(params: GetFixturesParams): Promise<TxFixture[]> {
  * odds.sample.json / NOTES.md).
  */
 export async function getOdds(fixtureId: number): Promise<TxOdds[]> {
+  if (isDemoFixtureId(fixtureId)) {
+    return findScenarioByDemoFixtureId(fixtureId)?.odds ?? [];
+  }
   return readThrough(`odds:${fixtureId}`, ODDS_TTL_SECONDS, async () => {
     const response = await fetchWithRetry(`/api/odds/snapshot/${fixtureId}`);
     return parsePayload(TxOddsListSchema, await response.json(), "getOdds");
@@ -167,6 +182,9 @@ export async function getOdds(fixtureId: number): Promise<TxOdds[]> {
  * substitution, lineups, var, game_finalised, ... (see types.ts).
  */
 export async function getScores(fixtureId: number): Promise<TxScore[]> {
+  if (isDemoFixtureId(fixtureId)) {
+    return findScenarioByDemoFixtureId(fixtureId)?.scores ?? [];
+  }
   const response = await fetchWithRetry(`/api/scores/snapshot/${fixtureId}`);
   return parsePayload(TxScoresSchema, await response.json(), "getScores");
 }

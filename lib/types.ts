@@ -28,6 +28,11 @@ export interface Fixture {
   stage: FixtureStage;
   status: FixtureStatus;
   group?: string;
+  /** Set only for a `DEMO_MODE=1` scenario fixture (`fixtureId` in the
+   * reserved demo range — see `lib/txline/demoScenarios.ts#DEMO_FIXTURE_OFFSET`),
+   * never present at all on a real one — so `Boolean(fixture.isDemo)`,
+   * not a `=== false` check, is the right test everywhere this is read. */
+  isDemo?: boolean;
 }
 
 export type MarketStatus = "OPEN" | "LOCKED" | "RESOLVED" | "VOIDED";

@@ -33,6 +33,7 @@ import { EventEmitter } from "node:events";
 import { getFixtures, getScores } from "@/lib/txline/client";
 import { getTxlineStream, type RawStatusEvent } from "@/lib/txline/stream";
 import { toFixture, toScoreEvent, fixtureStatusFromActionAndStatusId } from "@/lib/txline/normalize";
+import { isDemoFixtureId } from "@/lib/txline/demoScenarios";
 import type { Fixture, FixtureStatus, ScoreEvent } from "@/lib/types";
 import type { TxScore } from "@/lib/txline/types";
 
@@ -113,6 +114,12 @@ export class StatusTracker extends EventEmitter {
   async hydrate(fixtures?: Fixture[]): Promise<void> {
     if (this.hydrated && fixtures === undefined) return;
 
+    // `isDemo` is set here, not inside `toFixture` itself — see that
+    // function's own doc comment: `isDemoFixtureId` does real file I/O,
+    // and `normalize.ts` is imported at runtime by a client component.
+    // `hydrate` only ever runs server-side (this class's only real
+    // callers are `app/api/fixtures/route.ts` and `keeper/index.ts`), so
+    // the check is safe here.
     const list =
       fixtures ??
       (
@@ -120,7 +127,11 @@ export class StatusTracker extends EventEmitter {
           competition: WORLD_CUP_COMPETITION_ID,
           from: TOURNAMENT_START_EPOCH_DAY * ONE_DAY_SECONDS,
         })
-      ).map(toFixture);
+      ).map((raw) => {
+        const fixture = toFixture(raw);
+        if (isDemoFixtureId(fixture.fixtureId)) fixture.isDemo = true;
+        return fixture;
+      });
 
     for (const fixture of list) {
       const existing = this.fixtures.get(fixture.fixtureId);

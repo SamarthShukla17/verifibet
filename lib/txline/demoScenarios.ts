@@ -1,0 +1,113 @@
+/**
+ * The registry `lib/txline/client.ts`, `lib/txline/stream.ts`, and
+ * `lib/txline/normalize.ts` all read to know whether `DEMO_MODE` is on,
+ * which scenarios exist, and which fixture IDs are demo ones — one place,
+ * not three copies of "is this a demo fixture" logic that could drift.
+ * Server-only by the same convention as the rest of `lib/txline/*` (no
+ * `server-only` package, so `scripts/build-demo-scenario.ts` can still
+ * import types from here via `tsx`).
+ *
+ * Each scenario is a `demo-data/scenarios/<name>.rest.json` bundle (built
+ * by `scripts/build-demo-scenario.ts` — see that file's own doc comment
+ * for what's real vs. synthetic in it) plus a sibling `<name>.ndjson`
+ * `lib/txline/replaySource.ts` reads directly. This module only ever
+ * reads the `.rest.json` half — the REST snapshot data
+ * `lib/txline/client.ts` serves for a demo fixture.
+ */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import type { TxFixture, TxOdds, TxScore } from "@/lib/txline/types";
+
+/**
+ * Added to a scenario's real captured `FixtureId` to get its demo
+ * fixture ID — e.g. Germany v Paraguay's real `18175983` becomes
+ * `27175983`. Chosen specifically so a demo fixture's on-chain `Market`
+ * PDA (`lib/solana/pda.ts#deriveMarket`, seeded on `fixture_id`) can never
+ * collide with any real market's PDA: every real World Cup `FixtureId`
+ * observed in this project is in the ~17-18 million range, comfortably
+ * below this offset, and a demo ID (real + this) lands in the ~26-27
+ * million range, comfortably above every real one.
+ */
+export const DEMO_FIXTURE_OFFSET = 9_000_000;
+
+/** `demo-data/scenarios/<name>.{ndjson,rest.json}` basenames — add here
+ * when `scripts/build-demo-scenario.ts` produces a new scenario. */
+const SCENARIO_NAMES = ["paraguay-germany-r32"] as const;
+
+export interface DemoScenarioMeta {
+  scenario: string;
+  /** The full matchup description — not shown by the pill itself, kept
+   * for the scenario picker/controls Session 7.3 builds. */
+  matchup: string;
+  /** The exact "(...)" content `components/DemoReplayBanner.tsx`'s pill
+   * shows — e.g. "Jun 29 R32". Real kickoff date + real stage. */
+  label: string;
+  realFixtureId: number;
+  demoFixtureId: number;
+  /** ms — the real captured span this scenario's `.ndjson` replays. */
+  durationMs: number;
+}
+
+export interface DemoScenario {
+  meta: DemoScenarioMeta;
+  fixture: TxFixture;
+  /** Full real score-event history (all real, see `scripts/build-demo-scenario.ts`) —
+   * what `lib/txline/client.ts#getScores` serves for this demo fixture,
+   * matching `GET /api/scores/snapshot/{fixtureId}`'s real semantics
+   * (every logged event, not just the latest). */
+  scores: TxScore[];
+  /** What `lib/txline/client.ts#getOdds` serves for this demo fixture —
+   * the scenario's final odds tick only, matching a real settled
+   * fixture's "nothing left to quote" REST snapshot. Live odds *movement*
+   * comes from `lib/txline/replaySource.ts` over the SSE pipeline, not
+   * from this REST snapshot. */
+  odds: TxOdds[];
+}
+
+export function isDemoModeEnabled(): boolean {
+  return process.env.DEMO_MODE === "1";
+}
+
+export function getDemoSpeed(): number {
+  const parsed = Number(process.env.DEMO_SPEED);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 60;
+}
+
+function scenarioPath(name: string, ext: "rest.json" | "ndjson"): string {
+  return join(process.cwd(), "demo-data", "scenarios", `${name}.${ext}`);
+}
+
+/** Absolute path to a scenario's `.ndjson` — the one thing
+ * `lib/txline/replaySource.ts` needs from this module besides the
+ * scenario name itself. */
+export function scenarioNdjsonPath(name: string): string {
+  return scenarioPath(name, "ndjson");
+}
+
+let cached: DemoScenario[] | undefined;
+
+/** Reads + parses every registered scenario's `.rest.json` once, cached
+ * for the life of the process (same `globalThis`-free module-level
+ * memoization as `lib/config.ts`-style constants — these files never
+ * change at runtime, no hot-reload invalidation concern like the
+ * stateful singletons in `lib/txline/statusTracker.ts`/`stream.ts`). */
+export function loadDemoScenarios(): DemoScenario[] {
+  if (cached) return cached;
+  cached = SCENARIO_NAMES.map((name) => {
+    const raw = readFileSync(scenarioPath(name, "rest.json"), "utf-8");
+    return JSON.parse(raw) as DemoScenario;
+  });
+  return cached;
+}
+
+export function isDemoFixtureId(fixtureId: number): boolean {
+  return loadDemoScenarios().some((s) => s.meta.demoFixtureId === fixtureId);
+}
+
+export function findScenarioByDemoFixtureId(fixtureId: number): DemoScenario | undefined {
+  return loadDemoScenarios().find((s) => s.meta.demoFixtureId === fixtureId);
+}
+
+export function findScenarioByRealFixtureId(fixtureId: number): DemoScenario | undefined {
+  return loadDemoScenarios().find((s) => s.meta.realFixtureId === fixtureId);
+}

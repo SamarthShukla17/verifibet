@@ -24,6 +24,8 @@ import { EventEmitter } from "node:events";
 import { txlineFetch } from "@/lib/txline/http";
 import { TxOddsSchema, TxScoreSchema } from "@/lib/txline/schemas";
 import { toOddsSnapshot, toScoreEvent } from "@/lib/txline/normalize";
+import { isDemoModeEnabled, loadDemoScenarios } from "@/lib/txline/demoScenarios";
+import { ReplaySource } from "@/lib/txline/replaySource";
 import type { OddsSnapshot, ScoreEvent } from "@/lib/types";
 
 /** One parsed SSE frame — the unit `Source.connect()` yields. */
@@ -34,11 +36,11 @@ export interface RawSseEvent {
 }
 
 /**
- * What `TxlineStream` consumes. `NetworkSource` (below) is the only real
- * implementation today; a demo-replay `Source` (reading from
- * `demo-data/` instead of the network) is planned for Session 7.1 — this
- * interface exists now so `TxlineStream` never has to change to support
- * it.
+ * What `TxlineStream` consumes. `NetworkSource` (below) talks to real
+ * TxLINE; `lib/txline/replaySource.ts#ReplaySource` (Session 7.1) reads a
+ * recorded `demo-data/` scenario instead — this interface existed before
+ * that second implementation did specifically so `TxlineStream` never had
+ * to change to support it, and it didn't.
  */
 export interface Source {
   connect(signal?: AbortSignal): AsyncIterable<RawSseEvent>;
@@ -331,29 +333,52 @@ export declare interface TxlineStreamManager {
 }
 
 export class TxlineStreamManager extends EventEmitter {
-  private readonly odds: TxlineStream;
-  private readonly scores: TxlineStream;
+  private readonly streams: TxlineStream[] = [];
   private started = false;
 
+  /**
+   * Real fixtures always get their two live `NetworkSource`-backed
+   * streams, unconditionally — `DEMO_MODE` only ever *adds* a
+   * `ReplaySource`-backed pair per registered scenario on top, one
+   * `TxlineStream` each (same "one stream per kind" shape the real pair
+   * already uses), all wired onto this one merged emitter. A subscriber
+   * (`app/api/stream/route.ts`, `StatusTracker`) never has to know or
+   * care whether a given `'odds'`/`'score'`/`'status'` event came from
+   * TxLINE or from a recording — real and demo fixtures are genuinely
+   * merged, not switched between.
+   */
   constructor() {
     super();
     // Every `app/api/stream` request adds a listener here — unbounded by
     // design, not a leak (Node's default-10 warning doesn't apply).
     this.setMaxListeners(0);
 
-    this.odds = new TxlineStream(new NetworkSource({ path: "/api/odds/stream" }), "odds");
-    this.scores = new TxlineStream(new NetworkSource({ path: "/api/scores/stream" }), "scores");
+    this.addPair(
+      new TxlineStream(new NetworkSource({ path: "/api/odds/stream" }), "odds"),
+      new TxlineStream(new NetworkSource({ path: "/api/scores/stream" }), "scores"),
+    );
 
-    this.odds.on("odds", (payload) => this.emit("odds", payload));
-    this.scores.on("score", (payload) => this.emit("score", payload));
-    this.scores.on("status", (payload) => this.emit("status", payload));
+    if (isDemoModeEnabled()) {
+      for (const scenario of loadDemoScenarios()) {
+        this.addPair(
+          new TxlineStream(new ReplaySource({ scenario: scenario.meta.scenario, kind: "odds" }), "odds"),
+          new TxlineStream(new ReplaySource({ scenario: scenario.meta.scenario, kind: "scores" }), "scores"),
+        );
+      }
+    }
+  }
+
+  private addPair(odds: TxlineStream, scores: TxlineStream): void {
+    odds.on("odds", (payload) => this.emit("odds", payload));
+    scores.on("score", (payload) => this.emit("score", payload));
+    scores.on("status", (payload) => this.emit("status", payload));
+    this.streams.push(odds, scores);
   }
 
   start(): void {
     if (this.started) return;
     this.started = true;
-    this.odds.start();
-    this.scores.start();
+    for (const stream of this.streams) stream.start();
   }
 }
 
