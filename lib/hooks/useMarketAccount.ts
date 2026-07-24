@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import type { Outcome } from "@/lib/types";
 
 export interface MarketAccountResponse {
   synced: boolean;
@@ -73,10 +74,27 @@ export function useMarketAccount(fixtureId: number) {
     };
   }, [poll, fixtureId]);
 
+  // Local-only, no network — bumps `pools[outcome]`/`totalPool` by
+  // `amountBaseUnits` immediately after `sendAndConfirm` resolves, so the
+  // pool panel reflects a just-placed bet the instant the signature
+  // confirms rather than waiting on `refresh`'s own RPC round trip.
+  // Purely optimistic: the very next `refresh()` (usePlaceBet always calls
+  // one right after) overwrites this with the real on-chain value, so a
+  // stale/incorrect bump here can't linger.
+  const applyOptimisticBump = useCallback((outcome: Outcome, amountBaseUnits: bigint) => {
+    setData((prev) => {
+      if (!prev?.synced || !prev.pools || !prev.totalPool) return prev;
+      const pools = [...prev.pools] as [string, string, string];
+      pools[outcome] = (BigInt(pools[outcome]) + amountBaseUnits).toString();
+      const totalPool = (BigInt(prev.totalPool) + amountBaseUnits).toString();
+      return { ...prev, pools, totalPool };
+    });
+  }, []);
+
   // Exposed so a just-confirmed `place_bet` can refresh the pool panel
   // immediately rather than waiting up to POLL_INTERVAL_MS for the next
   // scheduled tick — the on-chain data is already there the moment
   // `sendAndConfirm` resolves, no reason to make the UI look stale for up
   // to 15s after a bet a viewer just watched land.
-  return { market: data, loading, refresh: poll };
+  return { market: data, loading, refresh: poll, applyOptimisticBump };
 }

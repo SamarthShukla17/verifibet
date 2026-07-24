@@ -8,7 +8,7 @@
  */
 import { PublicKey } from "@solana/web3.js";
 import type { BN } from "@coral-xyz/anchor";
-import { marketPda } from "@/lib/solana/pda";
+import { deriveMarket } from "@/lib/solana/pda";
 import { getReadOnlyProgram, MARKET_ACCOUNT_IDL_NAME } from "@/lib/solana/program";
 import type { MarketStatus, Outcome } from "@/lib/types";
 
@@ -51,7 +51,7 @@ function decodeMarketStatus(status: Record<string, unknown>): Lowercase<MarketSt
  * compressed demo calendar never got one), not an error. */
 export async function fetchMarketAccount(fixtureId: number): Promise<MarketAccountData | null> {
   const program = getReadOnlyProgram();
-  const [market] = marketPda(program.programId, fixtureId);
+  const [market] = deriveMarket(BigInt(fixtureId));
 
   const accountInfo = await program.provider.connection.getAccountInfo(market);
   if (!accountInfo) return null;
@@ -83,7 +83,7 @@ export async function fetchMarketAccount(fixtureId: number): Promise<MarketAccou
  * `user` field per matching account, not each `Bet`'s full data. */
 export async function fetchBettorCount(fixtureId: number): Promise<number> {
   const program = getReadOnlyProgram();
-  const [market] = marketPda(program.programId, fixtureId);
+  const [market] = deriveMarket(BigInt(fixtureId));
 
   const accounts = await program.provider.connection.getProgramAccounts(program.programId, {
     filters: [{ memcmp: { offset: BET_MARKET_OFFSET, bytes: market.toBase58() } }],

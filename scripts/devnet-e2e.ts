@@ -45,7 +45,7 @@ import {
 } from "@solana/spl-token";
 import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 
-import { betPda, marketPda } from "@/lib/solana/pda";
+import { deriveBet, deriveMarket } from "@/lib/solana/pda";
 import { formatUsdc } from "@/lib/format";
 import type { TxFixture } from "@/lib/txline/types";
 import verifibetIdl from "@/lib/solana/idl/verifibet.json";
@@ -143,8 +143,8 @@ async function main() {
   );
 
   const fixtureIdBn = new BN(fixture.FixtureId);
-  const [market] = marketPda(program.programId, fixtureIdBn);
-  const [bet] = betPda(program.programId, market, wallet.publicKey, BET_OUTCOME);
+  const [market] = deriveMarket(BigInt(fixture.FixtureId));
+  const [bet] = deriveBet(market, wallet.publicKey, BET_OUTCOME);
 
   console.log(`market PDA:  ${market.toBase58()}  (${explorerAddress(market.toBase58())})`);
 

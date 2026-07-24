@@ -14,7 +14,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import type { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
-import { marketPda } from "@/lib/solana/pda";
+import { deriveMarket } from "@/lib/solana/pda";
 import { getReadOnlyProgram } from "@/lib/solana/program";
 import type { Outcome } from "@/lib/types";
 
@@ -38,7 +38,7 @@ const ACTIVITY_SIGNATURE_SCAN_LIMIT = 25;
 export async function fetchRecentBetActivity(fixtureId: number): Promise<BetActivity[]> {
   const program = getReadOnlyProgram();
   const connection = program.provider.connection;
-  const [market] = marketPda(program.programId, fixtureId);
+  const [market] = deriveMarket(BigInt(fixtureId));
 
   const signatures = await connection.getSignaturesForAddress(market, {
     limit: ACTIVITY_SIGNATURE_SCAN_LIMIT,

@@ -114,8 +114,10 @@ export function MatchesBoard({ organized }: MatchesBoardProps) {
   // `totalPoolBaseUnits={0n}` above), so this is the one place real
   // pools/status/usdc_mint enter the picture, exactly when the slip
   // actually needs them.
-  const { market, refresh: refreshMarket } = useMarketAccount(selection?.fixtureId ?? 0);
-  const { balance, balanceLoading, placeBet } = usePlaceBet(market, refreshMarket);
+  const { market, refresh: refreshMarket, applyOptimisticBump } = useMarketAccount(
+    selection?.fixtureId ?? 0,
+  );
+  const { balance, balanceLoading, placeBet } = usePlaceBet(market, applyOptimisticBump, refreshMarket);
 
   const pools: [bigint, bigint, bigint] =
     market?.synced && market.pools

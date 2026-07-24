@@ -47,7 +47,12 @@ export function MatchDetailBoard({
   initialScore,
 }: MatchDetailBoardProps) {
   const live = useLiveFixture(fixtureId);
-  const { market, loading: marketLoading, refresh: refreshMarket } = useMarketAccount(fixtureId);
+  const {
+    market,
+    loading: marketLoading,
+    refresh: refreshMarket,
+    applyOptimisticBump,
+  } = useMarketAccount(fixtureId);
 
   // Starts from the server-fetched status and upgrades live as real
   // status-stream events arrive — the same mapping the tracker itself
@@ -86,7 +91,16 @@ export function MatchDetailBoard({
   const [selection, setSelection] = useState<{ outcome: Outcome; odds: number } | null>(null);
   const [betAmount, setBetAmount] = useState("25");
 
-  const bettingDisabled = marketStatus !== "OPEN" || odds === null;
+  // Gating on market status alone, not `odds === null` too: CLAUDE.md's
+  // TxLINE data-endpoints section is explicit that `[]` from
+  // `/odds/snapshot` ("no recent odds activity") is a normal, real result,
+  // not a failure — OddsDisplay already renders "no data"/"—" for
+  // `odds <= 0` rather than a bogus "0.00x" (see its own doc comment).
+  // Blocking betting on a genuinely OPEN market just because the last
+  // 5-minute odds window happened to be empty would punish users for a
+  // reference-price gap that the payout math doesn't even depend on
+  // (estimatePayout is pools-only).
+  const bettingDisabled = marketStatus !== "OPEN";
 
   // The KO market rule (see lib/market.ts#isKnockoutStage): every stage but
   // GROUP always produces a winner (extra time + penalties), so a
@@ -109,7 +123,7 @@ export function MatchDetailBoard({
       ? [BigInt(market.pools[0]), BigInt(market.pools[1]), BigInt(market.pools[2])]
       : [0n, 0n, 0n];
 
-  const { balance, balanceLoading, placeBet } = usePlaceBet(market, refreshMarket);
+  const { balance, balanceLoading, placeBet } = usePlaceBet(market, applyOptimisticBump, refreshMarket);
 
   async function handlePlaceBet(): Promise<string> {
     if (selection === null) throw new Error("no outcome selected");

@@ -1,40 +1,42 @@
 /**
- * Shared Anchor `Program` construction — originally inlined in
- * app/api/receipts/[fixtureId]/route.ts (see that file's own history for
- * the full reasoning); extracted here once a fourth read-only call site
- * (app/api/markets/[fixtureId]/route.ts's pool/activity reads) needed the
- * exact same thing, per that file's own "worth extracting... if a fourth
- * one appears" note. `getProgram` (client-side, real connection + real
- * pubkey) came later for BetSlip's `place_bet`-instruction building — see
- * its own doc comment below for why it's still safe to hand-roll the same
- * no-op wallet rather than a real signer.
+ * Anchor `Program` construction (both read-only and client-signing) plus
+ * `placeBet` — the one function that builds a real `place_bet`
+ * `Transaction`. Building is all this module does; sending is always
+ * `lib/solana/sendTx.ts#sendAndConfirm`'s job, never this one's.
  *
- * The wallet is hand-rolled (`publicKey` + no-op signers) rather than
- * `anchor.Wallet`/`NodeWallet` — that class's real implementation
- * transitively requires `rpc-websockets` -> `uuid`, which fails to bundle
- * under Next's webpack specifically ("`Wallet` is not exported from
- * `@coral-xyz/anchor`" at runtime, despite type-checking fine). Passing an
- * untyped object literal lets it structurally check against whatever
- * `AnchorProvider`'s constructor actually wants instead.
+ * The read-only wallet is hand-rolled (`publicKey` + no-op signers)
+ * rather than `anchor.Wallet`/`NodeWallet` — that class's real
+ * implementation transitively requires `rpc-websockets` -> `uuid`, which
+ * fails to bundle under Next's webpack specifically ("`Wallet` is not
+ * exported from `@coral-xyz/anchor`" at runtime, despite type-checking
+ * fine). Passing an untyped object literal lets it structurally check
+ * against whatever `AnchorProvider`'s constructor actually wants instead.
  *
  * `getReadOnlyProgram` is devnet-only, matching every other read-only call
  * site in this repo — `CONFIG.devnet.rpcUrl` directly, not `NETWORK`,
  * since this hackathon's target is devnet only (see CLAUDE.md).
  */
 import * as anchor from "@coral-xyz/anchor";
+import { BN } from "@coral-xyz/anchor";
 import {
   Connection,
   Keypair,
   PublicKey,
+  SystemProgram,
   type Transaction,
   type VersionedTransaction,
 } from "@solana/web3.js";
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
+  createAssociatedTokenAccountIdempotentInstruction,
+  getAssociatedTokenAddressSync,
+} from "@solana/spl-token";
+import type { WalletContextState } from "@solana/wallet-adapter-react";
 import { CONFIG } from "@/lib/config";
+import { deriveBet, deriveMarket, deriveVault, PROGRAM_ID } from "@/lib/solana/pda";
+import type { Outcome } from "@/lib/types";
 import verifibetIdl from "@/lib/solana/idl/verifibet.json";
-
-const PROGRAM_ID = new PublicKey(
-  process.env.NEXT_PUBLIC_PROGRAM_ID ?? "CCrrc5cdohor1EGGFkrQ3yKUS3zU9tnU2uzxWRnd2PMw",
-);
 
 /**
  * Matches Anchor's own camelCasing of each `::`-separated segment of
@@ -47,11 +49,8 @@ export const MARKET_ACCOUNT_IDL_NAME = "verifibet::state::market";
 export const BET_ACCOUNT_IDL_NAME = "verifibet::state::bet";
 
 /** Never actually signs anything (`signTransaction` is the identity
- * function) — safe even with a real, connected wallet's `publicKey`
- * because building an instruction via `program.methods.x(...).instruction()`
- * does no signing and no RPC calls of its own. Sending/signing for real
- * always goes through `lib/solana/sendTx.ts#sendAndConfirm` and the actual
- * wallet adapter instead, never through this `Program`/`AnchorProvider`. */
+ * function) — used only for read-only `Program`s that just decode
+ * accounts / build instructions, never send. */
 function noopWallet(publicKey: PublicKey) {
   return {
     publicKey,
@@ -69,17 +68,88 @@ export function getReadOnlyProgram(): anchor.Program {
 }
 
 /**
- * Client-side counterpart to `getReadOnlyProgram` — takes the real,
- * already-connected `Connection` (from `useConnection()`) and the real
- * connected wallet's `publicKey`, purely so `.instruction()` calls can
- * build accurate `place_bet`/`claim_winnings`/etc. instructions without a
- * second RPC connection. Still never signs or sends anything itself (see
- * `noopWallet`'s doc comment) — that's `sendAndConfirm`'s job once the
- * caller has a built `Transaction` in hand.
+ * The real, client-side `Program` — a genuinely connected wallet (from
+ * `useWallet()`), not a placeholder. Still never signs or sends through
+ * this `Program`/`AnchorProvider` itself: every method below only ever
+ * calls `.transaction()` (pure local encoding), and the actual signing +
+ * sending happens through `sendAndConfirm` and the wallet adapter's own
+ * `sendTransaction` — so `wallet.signTransaction` being merely *possibly*
+ * undefined on `WalletContextState`'s type (some adapters don't implement
+ * it) never actually matters here.
  */
-export function getProgram(connection: Connection, publicKey: PublicKey): anchor.Program {
-  const provider = new anchor.AnchorProvider(connection, noopWallet(publicKey), {
+export function getProgram(connection: Connection, wallet: WalletContextState): anchor.Program {
+  if (!wallet.publicKey) throw new Error("Wallet not connected");
+  const provider = new anchor.AnchorProvider(connection, wallet as unknown as anchor.Wallet, {
     commitment: "confirmed",
   });
   return new anchor.Program({ ...(verifibetIdl as anchor.Idl), address: PROGRAM_ID.toBase58() }, provider);
+}
+
+export interface PlaceBetParams {
+  fixtureId: bigint;
+  outcome: Outcome;
+  /** USDC base units, 6dp. */
+  amountBaseUnits: bigint;
+}
+
+/**
+ * Builds a real `place_bet` `Transaction` for the wallet `program` was
+ * constructed with (`getProgram`'s caller). Reads the market's own
+ * `usdc_mint` field on-chain rather than trusting a client-cached value —
+ * that field is fixed forever at `initialize_market` (see state.rs), so
+ * this is the one authoritative source, not `CONFIG.devnet.usdcMint` or
+ * anything passed in by the caller.
+ *
+ * Prepends an idempotent ATA-create instruction for the user's USDC
+ * account when it doesn't exist yet — `place_bet` itself has no
+ * `init_if_needed` on `user_usdc` (only `bet` does), so a wallet that's
+ * never touched USDC before would otherwise fail with a plain "account
+ * does not exist" instead of a single extra, safe-to-always-attempt
+ * instruction fixing it in the same transaction.
+ *
+ * Every account is computed explicitly via `lib/solana/pda.ts`, never via
+ * Anchor's own PDA auto-resolution — CLAUDE.md documents three separate
+ * real Anchor 0.30.1 codegen bugs already hit in this exact program, so
+ * nothing here trusts Anchor to get an address right that this function
+ * can just as easily derive itself.
+ */
+export async function placeBet(program: anchor.Program, params: PlaceBetParams): Promise<Transaction> {
+  const user = program.provider.publicKey;
+  if (!user) throw new Error("Wallet not connected");
+
+  const [market] = deriveMarket(params.fixtureId);
+
+  const marketAccountClient = (program.account as Record<string, { fetch(addr: PublicKey): Promise<{ usdcMint: PublicKey }> }>)[
+    MARKET_ACCOUNT_IDL_NAME
+  ];
+  const marketAccount = await marketAccountClient.fetch(market);
+  const usdcMint = marketAccount.usdcMint;
+
+  const [bet] = deriveBet(market, user, params.outcome);
+  const userUsdc = getAssociatedTokenAddressSync(usdcMint, user);
+  const vault = deriveVault(usdcMint, market);
+
+  const tx = await program.methods
+    .placeBet(params.outcome, new BN(params.amountBaseUnits.toString()))
+    .accounts({
+      user,
+      market,
+      bet,
+      userUsdc,
+      usdcMint,
+      vault,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      systemProgram: SystemProgram.programId,
+      associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+    })
+    .transaction();
+
+  const userUsdcInfo = await program.provider.connection.getAccountInfo(userUsdc);
+  if (!userUsdcInfo) {
+    tx.instructions.unshift(
+      createAssociatedTokenAccountIdempotentInstruction(user, userUsdc, user, usdcMint),
+    );
+  }
+
+  return tx;
 }

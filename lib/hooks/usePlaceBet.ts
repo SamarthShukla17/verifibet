@@ -2,12 +2,10 @@
 
 import { useCallback } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { PublicKey } from "@solana/web3.js";
 import { useBalances } from "@/lib/hooks/useBalances";
 import type { MarketAccountResponse } from "@/lib/hooks/useMarketAccount";
 import { parseUsdc } from "@/lib/format";
-import { getProgram } from "@/lib/solana/program";
-import { buildPlaceBetTx } from "@/lib/solana/placeBet";
+import { getProgram, placeBet as placeBetTx } from "@/lib/solana/program";
 import { sendAndConfirm } from "@/lib/solana/sendTx";
 import type { Outcome } from "@/lib/types";
 
@@ -26,12 +24,20 @@ export interface UsePlaceBetResult {
  * Shared wallet + on-chain wiring behind every BetSlip's `onSubmit` —
  * extracted once a second real call site (MatchesBoard.tsx's list-page
  * slip) needed the identical connection/wallet/balance/`getProgram`/
- * `buildPlaceBetTx`/`sendAndConfirm` sequence MatchDetailBoard.tsx already
- * had, rather than let a copy-pasted second version quietly diverge from
- * the first.
+ * `placeBet`/`sendAndConfirm` sequence MatchDetailBoard.tsx already had,
+ * rather than let a copy-pasted second version quietly diverge from the
+ * first.
+ *
+ * The onConfirm sequence, in order: build the tx (`program.ts#placeBet`,
+ * which reads the market's real `usdc_mint` on-chain itself) -> send +
+ * confirm it for real (`sendAndConfirm`) -> bump the pool optimistically
+ * so the UI reflects the bet the instant it confirms, not 15s later ->
+ * refresh both the market account and the wallet balance for real,
+ * correcting the optimistic guess with the actual on-chain state.
  */
 export function usePlaceBet(
   market: MarketAccountResponse | null,
+  applyOptimisticBump?: (outcome: Outcome, amountBaseUnits: bigint) => void,
   onSettled?: () => void,
 ): UsePlaceBetResult {
   const { connection } = useConnection();
@@ -41,26 +47,26 @@ export function usePlaceBet(
   const placeBet = useCallback(
     async (fixtureId: number, outcome: Outcome, amountInput: string) => {
       if (!wallet.publicKey) throw new Error("wallet not connected");
-      if (!market?.synced || !market.usdcMint) throw new Error("market not synced on-chain yet");
+      if (!market?.synced) throw new Error("market not synced on-chain yet");
 
       const amountBaseUnits = parseUsdc(amountInput);
       if (amountBaseUnits === null || amountBaseUnits <= 0n) throw new Error("invalid bet amount");
 
-      const program = getProgram(connection, wallet.publicKey);
-      const tx = await buildPlaceBetTx(program, {
-        fixtureId,
-        user: wallet.publicKey,
+      const program = getProgram(connection, wallet);
+      const tx = await placeBetTx(program, {
+        fixtureId: BigInt(fixtureId),
         outcome,
-        amount: amountBaseUnits,
-        usdcMint: new PublicKey(market.usdcMint),
+        amountBaseUnits,
       });
 
       const signature = await sendAndConfirm(connection, wallet, tx, { label: "Placing bet" });
+
+      applyOptimisticBump?.(outcome, amountBaseUnits);
       void refreshBalance();
       onSettled?.();
       return signature;
     },
-    [connection, wallet, market, refreshBalance, onSettled],
+    [connection, wallet, market, applyOptimisticBump, refreshBalance, onSettled],
   );
 
   return { balance, balanceLoading, placeBet };

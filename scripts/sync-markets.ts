@@ -55,7 +55,7 @@ import {
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
 
-import { marketPda } from "@/lib/solana/pda";
+import { deriveMarket } from "@/lib/solana/pda";
 import type { TxFixture } from "@/lib/txline/types";
 import verifibetIdl from "@/lib/solana/idl/verifibet.json";
 
@@ -109,6 +109,17 @@ export interface SyncMarketsOptions {
   fixtureId?: number;
   /** Defaults to `CONFIG.devnet.usdcMint` (loaded lazily — see below). */
   usdcMint?: PublicKey;
+  /**
+   * Demo-only escape hatch, paired 1:1 with `fixtureId` — overrides the
+   * on-chain `kickoff_ts` instead of using the fixture's real
+   * (long-elapsed, see module doc comment) `StartTime`. Every other field
+   * (fixture id, real team names, real historical kickoff logged in the
+   * summary) stays real; only the timestamp gating `place_bet`'s
+   * `KickoffPassed` check is shifted forward so a live demo can actually
+   * bet against it. Never used by the keeper or a bare `syncMarkets` call
+   * across the full tournament — only `--fixture` + `--kickoff` together.
+   */
+  kickoffOverrideTs?: number;
 }
 
 export type SyncOutcome = "created" | "existing" | "failed" | "dry-run";
@@ -178,14 +189,18 @@ export async function syncMarkets(
   const results: SyncResult[] = [];
 
   for (const fixture of fixtures) {
-    const kickoffTs = Math.floor(fixture.StartTime / 1000);
+    const realKickoffTs = Math.floor(fixture.StartTime / 1000);
+    const kickoffTs =
+      options.kickoffOverrideTs !== undefined && fixture.FixtureId === options.fixtureId
+        ? options.kickoffOverrideTs
+        : realKickoffTs;
     const home = fixture.Participant1IsHome ? fixture.Participant1 : fixture.Participant2;
     const away = fixture.Participant1IsHome ? fixture.Participant2 : fixture.Participant1;
     const truncatedHome = truncateToBytes(home, 24);
     const truncatedAway = truncateToBytes(away, 24);
 
     const fixtureIdBn = new BN(fixture.FixtureId);
-    const [market] = marketPda(program.programId, fixtureIdBn);
+    const [market] = deriveMarket(BigInt(fixture.FixtureId));
 
     const base: Omit<SyncResult, "outcome"> = {
       fixtureId: fixture.FixtureId,
@@ -262,6 +277,10 @@ function parseArgs(argv: string[]): SyncMarketsOptions {
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--dry-run") options.dryRun = true;
     else if (argv[i] === "--fixture") options.fixtureId = Number(argv[++i]);
+    else if (argv[i] === "--kickoff") options.kickoffOverrideTs = Number(argv[++i]);
+  }
+  if (options.kickoffOverrideTs !== undefined && options.fixtureId === undefined) {
+    throw new Error("--kickoff requires --fixture (demo override is single-fixture only)");
   }
   return options;
 }

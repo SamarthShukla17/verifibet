@@ -37,7 +37,7 @@
  */
 import { Connection, PublicKey } from "@solana/web3.js";
 import type { Program } from "@coral-xyz/anchor";
-import { marketPda } from "@/lib/solana/pda";
+import { deriveMarket } from "@/lib/solana/pda";
 import { MARKET_ACCOUNT_IDL_NAME } from "@/lib/solana/program";
 import { fetchProof } from "@/lib/txline/proofs";
 import { verifyProof } from "@/lib/txline/verify";
@@ -113,7 +113,7 @@ export async function buildReceipt(
   program: Program,
   fixtureId: number,
 ): Promise<Receipt> {
-  const [market] = marketPda(program.programId, fixtureId);
+  const [market] = deriveMarket(BigInt(fixtureId));
 
   const accountInfo = await connection.getAccountInfo(market);
   if (!accountInfo) {
