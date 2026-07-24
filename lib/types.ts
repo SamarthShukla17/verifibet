@@ -94,6 +94,19 @@ export interface Receipt {
   teams: { home: string; away: string };
   finalScore: Score;
   outcome: Outcome;
+  /** Unix seconds — `Market.kickoff_ts`. */
+  kickoffTs: number;
+  /**
+   * USDC base units per outcome (0/1/2), decimal strings — same
+   * cross-JSON-boundary convention as `lib/solana/market.ts`'s
+   * `MarketAccountData.pools` (a real on-chain `u64` can exceed
+   * `Number.MAX_SAFE_INTEGER`). Frozen at `resolve_market` and never
+   * touched again (see `claim_winnings.rs`'s own doc comment), so these
+   * are the *real, final* settlement pools, not a live snapshot.
+   */
+  pools: [string, string, string];
+  /** USDC base units, decimal string — `pools[0] + pools[1] + pools[2]`. */
+  totalPool: string;
   /** USDC base units, 6dp. */
   betAmount?: bigint;
   /** USDC base units, 6dp. */

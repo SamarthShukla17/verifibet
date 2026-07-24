@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Check, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatUsdc } from "@/lib/format";
+import { openXIntent, shareOrCopy } from "@/lib/share";
 import { cn } from "@/lib/utils";
 import type { Position } from "@/lib/hooks/useMyBets";
 
@@ -67,32 +68,18 @@ export function ShareButton({ position, className }: ShareButtonProps) {
   const [copied, setCopied] = useState(false);
 
   async function handleShare() {
-    const url = buildShareUrl(position);
-    const text = shareText(position);
-
-    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
-      try {
-        await navigator.share({ title: "VERIFIBET", text, url });
-      } catch {
-        // User closed the native share sheet — not an error worth a toast.
-      }
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(url);
+    const result = await shareOrCopy({ url: buildShareUrl(position), text: shareText(position) });
+    if (result === "copied") {
       setCopied(true);
       toast.success("Link copied");
       setTimeout(() => setCopied(false), 2000);
-    } catch {
+    } else if (result === "error") {
       toast.error("Couldn't copy link");
     }
   }
 
   function handleXIntent() {
-    const url = buildShareUrl(position);
-    const intentUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText(position))}&url=${encodeURIComponent(url)}`;
-    window.open(intentUrl, "_blank", "noreferrer");
+    openXIntent({ url: buildShareUrl(position), text: shareText(position) });
   }
 
   return (

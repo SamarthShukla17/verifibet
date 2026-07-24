@@ -11,8 +11,9 @@
  *    account coder — not the higher-level `program.account.<x>.fetch()`,
  *    per this task's explicit instruction, so a missing account is a
  *    plain `null` this module handles directly rather than `fetchNullable`
- *    doing it implicitly): `home`/`away`, `outcome`, `resolvedAt`,
- *    `status` (to gate whether a receipt can exist at all).
+ *    doing it implicitly): `home`/`away`, `outcome`, `kickoffTs`,
+ *    `pools`/`totalPool`, `resolvedAt`, `status` (to gate whether a
+ *    receipt can exist at all).
  * 2. The resolve transaction's own signature, found via
  *    `getSignaturesForAddress` on the market account, scanning
  *    newest-first for the one whose logs contain
@@ -130,6 +131,9 @@ export async function buildReceipt(
     away: string;
     status: Record<string, unknown>;
     outcome: number;
+    kickoffTs: { toNumber(): number };
+    pools: [{ toString(): string }, { toString(): string }, { toString(): string }];
+    totalPool: { toString(): string };
     resolvedAt: { toNumber(): number };
   };
 
@@ -162,6 +166,9 @@ export async function buildReceipt(
     teams: { home: decoded.home, away: decoded.away },
     finalScore: { home: proof.meta.home.value, away: proof.meta.away.value },
     outcome: decoded.outcome as Outcome,
+    kickoffTs: decoded.kickoffTs.toNumber(),
+    pools: [decoded.pools[0].toString(), decoded.pools[1].toString(), decoded.pools[2].toString()],
+    totalPool: decoded.totalPool.toString(),
     resolveTxSig,
     explorerUrl: `https://explorer.solana.com/tx/${resolveTxSig}?cluster=devnet`,
     proofRoot: proof.root,
