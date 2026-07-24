@@ -11,6 +11,12 @@ interface PageParams {
   fixtureId: string;
 }
 
+type PageSearchParams = { [key: string]: string | string[] | undefined };
+
+function firstParam(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 async function getFixture(fixtureIdParam: string): Promise<TrackedFixture | null> {
   const fixtureId = Number(fixtureIdParam);
   if (!Number.isInteger(fixtureId) || fixtureId <= 0) return null;
@@ -24,10 +30,45 @@ async function getFixture(fixtureIdParam: string): Promise<TrackedFixture | null
   return fixtures.find((f) => f.fixtureId === fixtureId) ?? null;
 }
 
+/**
+ * `?ref=share&pick=...&amount=...&mode=...&payout=...&multiplier=...` —
+ * `ShareButton`'s own query contract (see that component's doc comment).
+ * `home`/`away` are deliberately never read from `searchParams` here —
+ * this function already has the fixture's real team names from
+ * `getFixture`, which is the authoritative source a share link shouldn't
+ * need to (and, for an unrecognized/spoofed value, shouldn't) override.
+ */
+function buildOgImageUrl(fixture: TrackedFixture, searchParams: PageSearchParams): string | null {
+  if (firstParam(searchParams.ref) !== "share") return null;
+
+  const params = new URLSearchParams();
+  params.set("fixtureId", String(fixture.fixtureId));
+  params.set("home", fixture.home);
+  params.set("away", fixture.away);
+
+  const pick = firstParam(searchParams.pick);
+  if (pick) params.set("pick", pick);
+  const amount = firstParam(searchParams.amount);
+  if (amount) params.set("amount", amount);
+
+  if (firstParam(searchParams.mode) === "receipt") {
+    params.set("mode", "receipt");
+    const payout = firstParam(searchParams.payout);
+    if (payout) params.set("payout", payout);
+  } else {
+    const multiplier = firstParam(searchParams.multiplier);
+    if (multiplier) params.set("multiplier", multiplier);
+  }
+
+  return `${getBaseUrl()}/api/og/bet?${params.toString()}`;
+}
+
 export async function generateMetadata({
   params,
+  searchParams,
 }: {
   params: Promise<PageParams>;
+  searchParams: Promise<PageSearchParams>;
 }): Promise<Metadata> {
   const { fixtureId } = await params;
   const fixture = await getFixture(fixtureId);
@@ -39,10 +80,14 @@ export async function generateMetadata({
   const title = `${fixture.home} vs ${fixture.away} — VERIFIBET`;
   const description = `${STAGE_LABELS[fixture.stage]} — parimutuel odds and on-chain settlement for ${fixture.home} vs ${fixture.away}, verified via TxODDS TxLINE.`;
 
+  const ogImageUrl = buildOgImageUrl(fixture, await searchParams);
+  const images = ogImageUrl ? [{ url: ogImageUrl, width: 1200, height: 630 }] : undefined;
+
   return {
     title,
     description,
-    openGraph: { title, description },
+    openGraph: { title, description, images },
+    twitter: { card: "summary_large_image", title, description, images: ogImageUrl ? [ogImageUrl] : undefined },
   };
 }
 

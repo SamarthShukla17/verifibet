@@ -6,6 +6,7 @@ import { flagUrl } from "@/lib/flags";
 import { formatUsdc } from "@/lib/format";
 import { STAGE_LABELS } from "@/lib/market";
 import { Button } from "@/components/ui/button";
+import { ShareButton } from "@/components/bet/ShareButton";
 import { cn } from "@/lib/utils";
 import type { Position, PositionStatus } from "@/lib/hooks/useMyBets";
 
@@ -85,15 +86,18 @@ export function PositionRow({ position, className }: PositionRowProps) {
     <div className={cn("rounded-xl border border-border bg-card p-4", className)}>
       <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
         <span>{stage ? STAGE_LABELS[stage] : "Match"}</span>
-        <span className="tabular flex items-center gap-1.5">
-          {isLive && (
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive opacity-75" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-destructive" />
-            </span>
-          )}
-          {isLive ? "LIVE" : formatKickoff(kickoffTs)}
-        </span>
+        <div className="flex items-center gap-1">
+          <span className="tabular flex items-center gap-1.5">
+            {isLive && (
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-destructive" />
+              </span>
+            )}
+            {isLive ? "LIVE" : formatKickoff(kickoffTs)}
+          </span>
+          <ShareButton position={position} />
+        </div>
       </div>
 
       <div className="mt-1.5 min-w-0">
