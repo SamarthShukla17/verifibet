@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatUsdc, parseUsdc, usdcToInputValue } from "@/lib/format";
+import { formatSignedUsdc, formatUsdc, parseUsdc, usdcToInputValue } from "@/lib/format";
 
 describe("formatUsdc", () => {
   it("zero", () => {
@@ -49,6 +49,22 @@ describe("formatUsdc", () => {
     // slice(0, decimals) on a 6-digit fraction string naturally caps at 6
     // even if a caller asks for more.
     expect(formatUsdc(123_456n, 9)).toBe("0.123456");
+  });
+});
+
+describe("formatSignedUsdc", () => {
+  it("adds a leading + for positive amounts, matches formatUsdc's own - for negative", () => {
+    expect(formatSignedUsdc(500_000n)).toBe("+0.50");
+    expect(formatSignedUsdc(-500_000n)).toBe("-0.50");
+  });
+
+  it("zero gets no sign at all", () => {
+    expect(formatSignedUsdc(0n)).toBe("0.00");
+    expect(formatSignedUsdc(0n, 0)).toBe("0");
+  });
+
+  it("respects the decimals param the same way formatUsdc does", () => {
+    expect(formatSignedUsdc(12_450_000_000n, 0)).toBe("+12,450");
   });
 });
 

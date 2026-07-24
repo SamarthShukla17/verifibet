@@ -11,7 +11,7 @@ import { BalanceChip } from "@/components/layout/BalanceChip";
 const NAV_LINKS = [
   { href: "/matches", label: "Matches" },
   { href: "/leaderboard", label: "Leaderboard" },
-  { href: "/bets", label: "My Bets" },
+  { href: "/portfolio", label: "My Bets" },
 ];
 
 /**

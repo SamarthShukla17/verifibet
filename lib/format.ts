@@ -42,6 +42,20 @@ export function parseUsdc(input: string): bigint | null {
 }
 
 /**
+ * `formatUsdc` with an explicit leading sign — `+12.50`/`-3.00`/`0.00`
+ * (zero gets no sign at all, not `+0.00`; there's nothing to signal). For
+ * a realized-P&L figure specifically, where the sign itself is the point
+ * (a bare `12.50` doesn't read as "profit" the way `+12.50` does) —
+ * `formatUsdc` alone already handles the negative case correctly, this
+ * only adds the otherwise-missing `+`.
+ */
+export function formatSignedUsdc(baseUnits: bigint, decimals = 2): string {
+  if (baseUnits === 0n) return formatUsdc(baseUnits, decimals);
+  const sign = baseUnits > 0n ? "+" : "";
+  return `${sign}${formatUsdc(baseUnits, decimals)}`;
+}
+
+/**
  * `formatUsdc`'s *other* inverse — a controlled-input value, not a
  * display string. Never comma-grouped (unlike `formatUsdc`, whose commas
  * `parseUsdc` deliberately rejects) and trims trailing fractional zeros,
