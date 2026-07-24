@@ -53,3 +53,28 @@ export function estimatePayout(
 
   return (amount * totalPoolAfter) / winningPoolAfter;
 }
+
+/**
+ * The exact on-chain formula (`claim_winnings.rs`'s `compute_payout`):
+ * `stake * total_pool / winning_pool`, floored. Unlike `estimatePayout`
+ * above, `amount` here is *already* part of `pools`/`totalPool` — this is
+ * for a bet that's already been placed, not a hypothetical new one, so it
+ * must not be added a second time.
+ *
+ * Used for two different labels over the same math (see
+ * `lib/hooks/useMyBets.ts`): a live *estimate* while a market is still
+ * OPEN/LOCKED (pools still move until kickoff), and the *actual* claimable
+ * amount once RESOLVED — `claim_winnings.rs`'s own doc comment notes
+ * `Market.pools`/`total_pool` are frozen at `resolve_market` and never
+ * touched again, so this same formula against a resolved market's current
+ * on-chain pools already *is* the real payout, not an approximation of it.
+ *
+ * `winningPool <= 0n` returns `0n` rather than dividing by zero — not
+ * reachable for a bet that's actually part of that pool (a real bet's own
+ * `amount` is always counted in `pools[outcome]`), but this function
+ * shouldn't assume that invariant on the caller's behalf.
+ */
+export function computePayout(amount: bigint, totalPool: bigint, winningPool: bigint): bigint {
+  if (winningPool <= 0n) return 0n;
+  return (amount * totalPool) / winningPool;
+}

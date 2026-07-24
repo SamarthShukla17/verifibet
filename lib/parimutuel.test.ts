@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { estimatePayout } from "@/lib/parimutuel";
+import { computePayout, estimatePayout } from "@/lib/parimutuel";
 
 describe("estimatePayout", () => {
   it("first bet on a brand-new market (all pools zero) gets even odds — exactly its own stake back", () => {
@@ -45,5 +45,32 @@ describe("estimatePayout", () => {
     const totalPoolAfter = pools[0] + pools[1] + pools[2] + amount;
     // The exact (non-floored) share, scaled up, must be >= payout * winningPoolAfter.
     expect(payout * winningPoolAfter).toBeLessThanOrEqual(amount * totalPoolAfter);
+  });
+});
+
+describe("computePayout", () => {
+  it("matches claim_winnings.rs's own Rust unit tests exactly (same fixture values)", () => {
+    // 100 * 1000 / 300 = 333.33... -> 333, not 334.
+    expect(computePayout(100n, 1000n, 300n)).toBe(333n);
+    // total_pool == winning_pool: exact stake back, no gain or loss.
+    expect(computePayout(500n, 500n, 500n)).toBe(500n);
+    expect(computePayout(1n, 12_345n, 12_345n)).toBe(1n);
+    expect(computePayout(0n, 1000n, 300n)).toBe(0n);
+  });
+
+  it("returns 0n for a zero (or negative) winning pool rather than dividing by zero", () => {
+    expect(computePayout(100n, 1000n, 0n)).toBe(0n);
+    expect(computePayout(100n, 1000n, -1n)).toBe(0n);
+  });
+
+  it("amount is not added to the pools a second time (unlike estimatePayout)", () => {
+    // A bet that's already 100% of a brand-new market's winning pool gets
+    // back exactly the total pool, not double-counted the way
+    // estimatePayout([0,0,0], _, 5_000_000n) would treat a *new* bet.
+    expect(computePayout(5_000_000n, 5_000_000n, 5_000_000n)).toBe(5_000_000n);
+  });
+
+  it("large real-world USDC base-unit magnitudes stay exact (BigInt, no float rounding)", () => {
+    expect(computePayout(1_000_000n, 11_000_000n, 3_000_000n)).toBe(3_666_666n);
   });
 });
