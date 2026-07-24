@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StreakChip } from "@/components/bet/StreakChip";
-import { formatSignedUsdc, formatUsdc, shortenPubkey } from "@/lib/format";
+import { ExplorerLink } from "@/components/ExplorerLink";
+import { formatSignedUsdc, formatUsdc } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { LeaderboardEntry } from "@/app/api/leaderboard/route";
 
@@ -95,7 +96,12 @@ function LeaderboardRow({
 
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-foreground">
-          {isYou ? "You" : shortenPubkey(entry.wallet)}
+          <ExplorerLink
+            kind="account"
+            value={entry.wallet}
+            display={isYou ? "You" : undefined}
+            className="text-foreground hover:text-primary"
+          />
         </p>
         <p className="text-xs text-muted-foreground">
           {decided === 0 ? "No decided bets yet" : `${entry.wins}–${entry.losses}`}

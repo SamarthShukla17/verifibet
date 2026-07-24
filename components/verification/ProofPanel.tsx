@@ -12,8 +12,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { ExplorerLink } from "@/components/ExplorerLink";
 import { flagUrl } from "@/lib/flags";
-import { CONFIG } from "@/lib/config";
+import { NETWORK } from "@/lib/config";
 import { verifyProof } from "@/lib/txline/verify";
 import { cn } from "@/lib/utils";
 import type { Receipt } from "@/lib/types";
@@ -144,12 +145,18 @@ function FactRow({
   label,
   value,
   display,
+  linkKind,
 }: {
   label: string;
   value: string;
-  /** Shown instead of `value` when set — `value` is still what gets
-   * copied, always the real, full, uncosmetic string. */
+  /** Shown instead of `value` when set (and no `linkKind`) — `value` is
+   * still what gets copied, always the real, full, uncosmetic string. */
   display?: string;
+  /** When set, the value renders as an `ExplorerLink` (icon + truncated
+   * value + external affordance) instead of inert text — `resolveTxSig`
+   * and `TxLINE program` are real on-chain things worth one click away;
+   * `proofRoot` (a hash, not an address Explorer can look up) has none. */
+  linkKind?: "tx" | "program";
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -168,7 +175,16 @@ function FactRow({
     <div className="flex items-center justify-between gap-3 border-b border-border py-2.5 last:border-b-0">
       <span className="shrink-0 text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
       <div className="flex min-w-0 items-center gap-1.5">
-        <span className="tabular truncate font-mono text-xs text-foreground">{display ?? value}</span>
+        {linkKind ? (
+          <ExplorerLink
+            value={value}
+            kind={linkKind}
+            display={display}
+            className="text-foreground hover:no-underline hover:text-primary"
+          />
+        ) : (
+          <span className="tabular truncate font-mono text-xs text-foreground">{display ?? value}</span>
+        )}
         <button
           type="button"
           onClick={() => void handleCopy()}
@@ -307,12 +323,18 @@ export function ProofPanel({ receipt }: ProofPanelProps) {
       </div>
 
       <div>
-        <FactRow label="Resolve tx" value={receipt.resolveTxSig} display={truncateMiddle(receipt.resolveTxSig, 10, 8)} />
+        <FactRow
+          label="Resolve tx"
+          value={receipt.resolveTxSig}
+          display={truncateMiddle(receipt.resolveTxSig, 10, 8)}
+          linkKind="tx"
+        />
         <FactRow label="Proof root" value={receipt.proofRoot} display={truncateMiddle(receipt.proofRoot, 10, 8)} />
         <FactRow
           label="TxLINE program"
-          value={CONFIG.devnet.txlineProgramId}
-          display={truncateMiddle(CONFIG.devnet.txlineProgramId, 10, 8)}
+          value={NETWORK.txlineProgramId}
+          display={truncateMiddle(NETWORK.txlineProgramId, 10, 8)}
+          linkKind="program"
         />
       </div>
 

@@ -38,6 +38,7 @@
  */
 import { Connection, PublicKey } from "@solana/web3.js";
 import type { Program } from "@coral-xyz/anchor";
+import { explorerTxUrl } from "@/lib/explorer";
 import { deriveMarket } from "@/lib/solana/pda";
 import { MARKET_ACCOUNT_IDL_NAME } from "@/lib/solana/program";
 import { fetchProof } from "@/lib/txline/proofs";
@@ -170,7 +171,7 @@ export async function buildReceipt(
     pools: [decoded.pools[0].toString(), decoded.pools[1].toString(), decoded.pools[2].toString()],
     totalPool: decoded.totalPool.toString(),
     resolveTxSig,
-    explorerUrl: `https://explorer.solana.com/tx/${resolveTxSig}?cluster=devnet`,
+    explorerUrl: explorerTxUrl(resolveTxSig),
     proofRoot: proof.root,
     proofLeaf: proof.leaf,
     proofPath: proof.path,

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowUpRight } from "lucide-react";
-import { formatUsdc, shortenPubkey } from "@/lib/format";
+import { ExplorerLink } from "@/components/ExplorerLink";
+import { formatUsdc } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Outcome } from "@/lib/types";
 
@@ -82,28 +82,29 @@ export function ActivityTab({ fixtureId, home, away }: ActivityTabProps) {
 
   return (
     <div className="divide-y divide-border rounded-xl border border-border bg-card">
+      {/* A plain row, not an outer `<a>` — the bettor's own address is
+          now its own `ExplorerLink`, and anchors can't nest, so the
+          transaction gets its own explicit link too instead of being
+          implied by wrapping the whole row. */}
       {activity.map((bet) => (
-        <a
+        <div
           key={bet.signature}
-          href={bet.explorerUrl}
-          target="_blank"
-          rel="noreferrer"
           className="flex items-center justify-between gap-3 p-3 text-sm transition-colors hover:bg-accent"
         >
           <div className="min-w-0">
             <p className="truncate font-medium text-foreground">
-              {shortenPubkey(bet.user)} backed{" "}
+              <ExplorerLink kind="account" value={bet.user} className="text-foreground hover:text-primary" /> backed{" "}
               <span className="text-primary">{outcomeLabel(bet.outcome, home, away)}</span>
             </p>
             <p className="text-xs text-muted-foreground">{relativeTime(bet.blockTime)}</p>
           </div>
-          <div className="flex shrink-0 items-center gap-1.5">
+          <div className="flex shrink-0 items-center gap-2">
             <span className="tabular font-semibold text-foreground">
               {formatUsdc(BigInt(bet.amount), 2)} USDC
             </span>
-            <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+            <ExplorerLink kind="tx" value={bet.signature} display="Tx" />
           </div>
-        </a>
+        </div>
       ))}
     </div>
   );

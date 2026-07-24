@@ -14,6 +14,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import type { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
+import { explorerTxUrl } from "@/lib/explorer";
 import { deriveMarket } from "@/lib/solana/pda";
 import { getReadOnlyProgram } from "@/lib/solana/program";
 import type { Outcome } from "@/lib/types";
@@ -65,7 +66,7 @@ export async function fetchRecentBetActivity(fixtureId: number): Promise<BetActi
 
         return {
           signature: sigInfo.signature,
-          explorerUrl: `https://explorer.solana.com/tx/${sigInfo.signature}?cluster=devnet`,
+          explorerUrl: explorerTxUrl(sigInfo.signature),
           slot: sigInfo.slot,
           blockTime: sigInfo.blockTime ?? null,
           user: data.user.toBase58(),
