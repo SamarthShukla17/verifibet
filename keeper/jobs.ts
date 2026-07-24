@@ -1,22 +1,27 @@
 /**
- * The keeper's three on-chain actions — `syncMarketsJob`, `lockMarketJob`,
- * `resolveMarketJob`. Pure business logic: each function re-reads the
- * relevant `Market` account on-chain before doing anything (the
- * idempotency rule `keeper/index.ts`'s doc comment describes — a restart
- * replaying a missed event must never double-act), then either no-ops
- * with a `"skipped"` result or sends exactly one transaction. None of
- * these log themselves; `keeper/index.ts`'s job runner wraps every call
- * and emits the one structured `{job, fixtureId, txSig?, error?}` log line
- * per attempt, so the shape stays identical regardless of which job ran.
+ * The keeper's simple on-chain actions — `syncMarketsJob`, `lockMarketJob`
+ * — plus the shared helpers `keeper/resolver.ts`'s heavier `resolveFixture`
+ * pipeline reuses (`fetchMarketStatus`, `dailyScoresRootsPda`,
+ * `formatTxError`, `KeeperContext`, `loadKeeperKeypair`) so there's exactly
+ * one implementation of each, not two that could drift. `resolveMarketJob`
+ * used to live here as a self-contained CPI-argument builder; it's been
+ * superseded by `keeper/resolver.ts#resolveFixture` (feed-flicker polling,
+ * `deriveOutcome`, compute budget + priority fee, tx-size guard, the full
+ * failure taxonomy) — `keeper/index.ts` calls that directly now.
+ *
+ * Every job here re-reads the relevant `Market` account on-chain before
+ * doing anything (the idempotency rule `keeper/index.ts`'s doc comment
+ * describes — a restart replaying a missed event must never double-act),
+ * then either no-ops with a `"skipped"` result or sends exactly one
+ * transaction. None of these log themselves; `keeper/index.ts`'s job
+ * runner wraps every call and emits the one structured
+ * `{job, fixtureId, txSig?, error?}` log line per attempt, so the shape
+ * stays identical regardless of which job ran.
  */
 import * as anchor from "@coral-xyz/anchor";
-import { BN } from "@coral-xyz/anchor";
 import { Connection, Keypair, PublicKey, sendAndConfirmTransaction } from "@solana/web3.js";
 
-import { CONFIG } from "@/lib/config";
 import { deriveMarket } from "@/lib/solana/pda";
-import { fetchProof } from "@/lib/txline/proofs";
-import type { Outcome } from "@/lib/types";
 import { syncMarkets, type SyncResult as MarketSyncResult } from "@/scripts/sync-markets";
 
 /** Same fully-qualified-Rust-path quirk documented in `scripts/sync-markets.ts`
@@ -57,13 +62,17 @@ export function loadKeeperKeypair(secret: string): Keypair {
  * raw message's first line for anything else (network/RPC failure). Same
  * approach as `scripts/sync-markets.ts`'s `formatSyncError`, duplicated
  * rather than imported since that one isn't exported (script-local). */
-function formatTxError(err: unknown): string {
+export function formatTxError(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err);
   const match = message.match(/Error Code: (\w+)\. Error Number: (\d+)\. Error Message: ([^.]+)\./);
   return match ? `${match[1]} (${match[2]}): ${match[3]}` : message.split("\n")[0];
 }
 
-async function fetchMarketStatus(
+/** Exported so `resolveFixture` can run the same idempotency check
+ * (`Resolved`/`Voided` -> skip) before spending any effort building a
+ * proof or a transaction — one implementation of "what does this market's
+ * on-chain status decode to", not two. */
+export async function fetchMarketStatus(
   program: anchor.Program,
   market: PublicKey,
 ): Promise<Lowercase<import("@/lib/types").MarketStatus> | null> {
@@ -80,7 +89,7 @@ async function fetchMarketStatus(
  * seed expression exactly (see that file's doc comment for why it's
  * clamped: a keeper-supplied `ts` is otherwise an unclamped cast). Owned by
  * TxLINE's program, not ours — `seeds::program` on the Rust side. */
-function dailyScoresRootsPda(ts: number, txlineProgramId: PublicKey): PublicKey {
+export function dailyScoresRootsPda(ts: number, txlineProgramId: PublicKey): PublicKey {
   const epochDay = Math.min(Math.max(Math.floor(ts / MS_PER_DAY), 0), 0xffff);
   const seed = Buffer.alloc(2);
   seed.writeUInt16LE(epochDay);
@@ -142,101 +151,6 @@ export async function lockMarketJob(ctx: KeeperContext, fixtureId: number): Prom
       commitment: "confirmed",
     });
     return { action: "locked", status, txSig };
-  } catch (err) {
-    throw new Error(formatTxError(err));
-  }
-}
-
-export interface ResolveJobResult {
-  action: "resolved" | "skipped";
-  status: string;
-  outcome?: Outcome;
-  txSig?: string;
-}
-
-/**
- * `resolve_market` — re-reads on-chain status first (same idempotency
- * rule as `lockMarketJob`: `Resolved`/`Voided` is a no-op, not an error,
- * so a keeper restart never double-resolves). `Open` is accepted, not
- * just `Locked` — `resolve_market.rs`'s own `require_open_or_locked`
- * guard allows both, covering a missed `onKickoff` lock without this job
- * needing to lock first itself.
- *
- * Builds every CPI argument straight from `lib/txline/proofs.ts`'s
- * `fetchProof` — see that module's doc comment for why its normalized
- * shape (and the untouched `meta.raw` TxLINE response alongside it) is
- * exactly what `resolve_market`'s five proof-shaped args need, byte for
- * byte, with no re-derivation. A finished fixture with no `game_finalised`
- * scores event yet (TxLINE hasn't caught up) makes `fetchProof` throw,
- * which is exactly the "not ready, try again" signal the retry queue's
- * backoff is for.
- */
-export async function resolveMarketJob(ctx: KeeperContext, fixtureId: number): Promise<ResolveJobResult> {
-  const [market] = deriveMarket(BigInt(fixtureId));
-  const status = await fetchMarketStatus(ctx.program, market);
-
-  if (status === null) {
-    throw new Error(`market for fixture ${fixtureId} does not exist on-chain yet`);
-  }
-  if (status !== "open" && status !== "locked") {
-    return { action: "skipped", status };
-  }
-
-  const proof = await fetchProof(fixtureId);
-  const raw = proof.meta.raw;
-  if (!raw.statToProve2 || !raw.statProof2) {
-    throw new Error(`fixture ${fixtureId} proof is missing the away-team stat term`);
-  }
-
-  const outcome: Outcome = proof.value > 0 ? 0 : proof.value === 0 ? 1 : 2;
-
-  const fixtureSummary = {
-    fixtureId: new BN(raw.summary.fixtureId),
-    updateStats: {
-      updateCount: raw.summary.updateStats.updateCount,
-      minTimestamp: new BN(raw.summary.updateStats.minTimestamp),
-      maxTimestamp: new BN(raw.summary.updateStats.maxTimestamp),
-    },
-    eventsSubTreeRoot: raw.summary.eventStatsSubTreeRoot,
-  };
-  const statHome = {
-    statToProve: raw.statToProve,
-    eventStatRoot: raw.eventStatRoot,
-    statProof: raw.statProof,
-  };
-  const statAway = {
-    statToProve: raw.statToProve2,
-    eventStatRoot: raw.eventStatRoot,
-    statProof: raw.statProof2,
-  };
-
-  const txlineProgramId = new PublicKey(CONFIG.devnet.txlineProgramId);
-  const dailyScoresMerkleRoots = dailyScoresRootsPda(raw.ts, txlineProgramId);
-
-  const tx = await ctx.program.methods
-    .resolveMarket(
-      outcome,
-      new BN(raw.ts),
-      fixtureSummary,
-      raw.subTreeProof,
-      raw.mainTreeProof,
-      statHome,
-      statAway,
-    )
-    .accountsStrict({
-      authority: ctx.keeper.publicKey,
-      market,
-      txlineProgram: txlineProgramId,
-      dailyScoresMerkleRoots,
-    })
-    .transaction();
-  tx.feePayer = ctx.keeper.publicKey;
-
-  try {
-    const txSig = await sendAndConfirmTransaction(ctx.connection, tx, [ctx.keeper], {
-      commitment: "confirmed",
-    });
-    return { action: "resolved", status, outcome, txSig };
   } catch (err) {
     throw new Error(formatTxError(err));
   }

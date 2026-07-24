@@ -16,7 +16,8 @@
     "txline:smoke": "tsx scripts/txline-smoke.ts",
     "anchor:build": "cd anchor && anchor build --no-idl -- --tools-version v1.52 && ./scripts/build-idl.sh",
     "anchor:test": "cd anchor && anchor test --skip-build",
-    "keeper": "tsx keeper/index.ts"
+    "keeper": "tsx keeper/index.ts",
+    "keeper:resolve": "tsx keeper/resolver.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.30.1",

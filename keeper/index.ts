@@ -33,28 +33,20 @@
  * Both paths converge on the same `enqueue()` — there's no separate
  * "fast path" implementation to keep in sync with the "slow path".
  */
-import { createWriteStream, existsSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { createServer } from "node:http";
-import { join } from "node:path";
 
 if (existsSync(".env.local")) {
   process.loadEnvFile(".env.local");
 }
 
-import * as anchor from "@coral-xyz/anchor";
-import { Connection, PublicKey } from "@solana/web3.js";
-import pino from "pino";
+import type pino from "pino";
 
-import { CONFIG } from "@/lib/config";
 import { getStatusTracker } from "@/lib/txline/statusTracker";
-import verifibetIdl from "@/lib/solana/idl/verifibet.json";
-import {
-  loadKeeperKeypair,
-  lockMarketJob,
-  resolveMarketJob,
-  syncMarketsJob,
-  type KeeperContext,
-} from "@/keeper/jobs";
+import { buildLogger } from "@/keeper/logger";
+import { buildKeeperContext } from "@/keeper/context";
+import { lockMarketJob, syncMarketsJob } from "@/keeper/jobs";
+import { resolveFixture } from "@/keeper/resolver";
 
 const TICK_MS = 60_000;
 const SYNC_INTERVAL_MS = 60 * 60 * 1000; // hourly
@@ -73,33 +65,6 @@ interface QueuedJob {
   fixtureId: number;
   attempt: number;
   nextAttemptAt: number;
-}
-
-function buildLogger() {
-  const fileStream = createWriteStream(join(process.cwd(), "keeper", "logs.ndjson"), { flags: "a" });
-  return pino({ level: "info" }, pino.multistream([{ stream: process.stdout }, { stream: fileStream }]));
-}
-
-async function buildContext(logger: pino.Logger): Promise<KeeperContext> {
-  const secret = process.env.KEEPER_SECRET_KEY;
-  if (!secret) throw new Error("KEEPER_SECRET_KEY is not set");
-  const keeper = loadKeeperKeypair(secret);
-
-  const connection = new Connection(CONFIG.devnet.rpcUrl, "confirmed");
-  const programId = new PublicKey(
-    process.env.NEXT_PUBLIC_PROGRAM_ID ?? "CCrrc5cdohor1EGGFkrQ3yKUS3zU9tnU2uzxWRnd2PMw",
-  );
-  const provider = new anchor.AnchorProvider(connection, new anchor.Wallet(keeper), {
-    commitment: "confirmed",
-  });
-  const program = new anchor.Program({ ...(verifibetIdl as anchor.Idl), address: programId.toBase58() }, provider);
-
-  logger.info(
-    { keeper: keeper.publicKey.toBase58(), program: program.programId.toBase58(), rpc: CONFIG.devnet.rpcUrl },
-    "keeper identity",
-  );
-
-  return { connection, program, keeper };
 }
 
 /** Boot-time hydration hits TxLINE's REST API once, outside any request's
@@ -129,7 +94,7 @@ async function hydrateWithRetry(logger: pino.Logger) {
 
 async function main() {
   const logger = buildLogger();
-  const ctx = await buildContext(logger);
+  const ctx = await buildKeeperContext(logger);
   const tracker = await hydrateWithRetry(logger);
 
   const queue = new Map<string, QueuedJob>();
@@ -149,7 +114,7 @@ async function main() {
       const result =
         job.type === "lockMarket"
           ? await lockMarketJob(ctx, job.fixtureId)
-          : await resolveMarketJob(ctx, job.fixtureId);
+          : await resolveFixture(ctx, job.fixtureId, logger);
       logger.info(
         { job: job.type, fixtureId: job.fixtureId, txSig: result.txSig, action: result.action },
         `${job.type} ${result.action}`,
