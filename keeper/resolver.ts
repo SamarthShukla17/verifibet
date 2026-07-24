@@ -140,8 +140,13 @@ async function pollUntilStableFinished(fixtureId: number, logger: pino.Logger): 
     try {
       events = await getScores(fixtureId);
     } catch (err) {
+      // `progress: true` marks this (and the two log calls below) as
+      // poll-loop chatter, not a completed job attempt — app/api/keeper/logs
+      // filters on it structurally rather than matching message strings,
+      // so the dashboard's recent-actions table shows one row per real
+      // job outcome, not one per 5s poll tick.
       logger.warn(
-        { job: "resolveMarket", fixtureId, attempt, error: err instanceof Error ? err.message : String(err) },
+        { job: "resolveMarket", fixtureId, attempt, progress: true, error: err instanceof Error ? err.message : String(err) },
         "getScores poll failed, retrying",
       );
       if (attempt < MAX_POLL_ATTEMPTS) await sleep(POLL_INTERVAL_MS);
@@ -154,12 +159,15 @@ async function pollUntilStableFinished(fixtureId: number, logger: pino.Logger): 
 
     if (status === "FINISHED" && finalised.length > 0) {
       consecutiveFinished += 1;
-      logger.info({ job: "resolveMarket", fixtureId, attempt, consecutiveFinished }, "fixture reports FINISHED");
+      logger.info(
+        { job: "resolveMarket", fixtureId, attempt, consecutiveFinished, progress: true },
+        "fixture reports FINISHED",
+      );
       if (consecutiveFinished >= 2) return latestBySeq(finalised)!;
     } else {
       if (consecutiveFinished > 0) {
         logger.warn(
-          { job: "resolveMarket", fixtureId, attempt },
+          { job: "resolveMarket", fixtureId, attempt, progress: true },
           "fixture flickered away from FINISHED mid-poll — resetting stability counter",
         );
       }
@@ -280,10 +288,13 @@ async function handleFailure(logger: pino.Logger, fixtureId: number, err: unknow
     return;
   }
 
-  logger.error(
-    { job: "resolveMarket", fixtureId, error: err instanceof Error ? err.message : String(err) },
-    "resolveFixture failed",
-  );
+  // Anything else (e.g. "market for fixture N does not exist on-chain
+  // yet") is left unlogged here deliberately — the caller (keeper/index.ts's
+  // retry-queue runner, or this file's own CLI `main`) already logs every
+  // thrown error generically. Logging it again here too would just be the
+  // same failure appearing twice in the dashboard's recent-actions table
+  // (once "Failed" from this function, once "Retrying" from the queue) for
+  // one real event.
 }
 
 export interface ResolveResult {

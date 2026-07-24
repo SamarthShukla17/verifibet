@@ -79,3 +79,13 @@ export function usdcToInputValue(baseUnits: bigint): string {
 export function shortenPubkey(pubkey: string): string {
   return `${pubkey.slice(0, 4)}..${pubkey.slice(-4)}`;
 }
+
+/** SOL balance display — a plain `number`, not the bigint/base-units
+ * convention `formatUsdc` follows: SOL gas balance is display-only
+ * context for an operator (CLAUDE.md's never-floats rule is about
+ * settlement amounts — `betAmount`/`payout` — not this). 4dp is enough
+ * precision to see "is this wallet running low," not enough to look like
+ * a precise ledger figure. */
+export function formatSol(sol: number): string {
+  return `${sol.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} SOL`;
+}
