@@ -15,7 +15,8 @@
     "txline:activate": "tsx scripts/txline-activate.ts",
     "txline:smoke": "tsx scripts/txline-smoke.ts",
     "anchor:build": "cd anchor && anchor build --no-idl -- --tools-version v1.52 && ./scripts/build-idl.sh",
-    "anchor:test": "cd anchor && anchor test --skip-build"
+    "anchor:test": "cd anchor && anchor test --skip-build",
+    "keeper": "tsx keeper/index.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.30.1",
@@ -38,6 +39,7 @@
     "minidenticons": "^4.2.1",
     "next": "14.2.35",
     "next-themes": "^0.4.6",
+    "pino": "^10.3.1",
     "react": "^18",
     "react-dom": "^18",
     "recharts": "^3.10.0",

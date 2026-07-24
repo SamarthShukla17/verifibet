@@ -41,6 +41,7 @@ NOTES.md
 demo-data/raw
 .txline-subscription.json
 /proofs
+/keeper/logs.ndjson
 
 # claude code local session settings
 .claude/settings.local.json
