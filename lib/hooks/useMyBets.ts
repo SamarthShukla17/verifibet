@@ -5,24 +5,18 @@ import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import type { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 import { BET_ACCOUNT_IDL_NAME, MARKET_ACCOUNT_IDL_NAME, getProgram } from "@/lib/solana/program";
-import { computePayout } from "@/lib/parimutuel";
+import { classifyBet, type SettlementStatus } from "@/lib/parimutuel";
 import type { TrackedFixture } from "@/lib/txline/statusTracker";
 import type { FixtureStage, FixtureStatus, MarketStatus, Outcome } from "@/lib/types";
 
-/**
- * `pending` while the market hasn't resolved/voided yet; `won`/`lost`
- * once resolved (whichever `bet.outcome === market.outcome` decides);
- * `refundable` once voided; `claimed` — checked *before* any of the
- * above — once `bet.claimed` is true, regardless of which of the two
- * claim instructions (`claim_winnings` or `claim_refund`) actually set
- * it. These five are mutually exclusive and exhaustive: a losing bet can
- * never become `claimed` (`claim_winnings` on-chain requires
- * `bet.outcome === market.outcome`, so `lost` is always terminal), and a
- * market is never simultaneously `Resolved` and `Voided`, so `claimed`'s
- * payout math never has to guess which path produced it — the market's
- * own current status says so unambiguously.
- */
-export type PositionStatus = "pending" | "won" | "lost" | "refundable" | "claimed";
+/** Re-exported from `lib/parimutuel.ts`'s `SettlementStatus` — kept as
+ * its own name here since `Position`-consuming code (`PositionRow`,
+ * `lib/portfolio.ts`) predates the shared-classification refactor and
+ * reads more naturally as "a position's status" than "a settlement
+ * status" at those call sites. Same five values, same meaning — see
+ * `classifyBet`'s own doc comment for why they're mutually exclusive and
+ * exhaustive. */
+export type PositionStatus = SettlementStatus;
 
 export interface Position {
   /** Bet PDA, base58 — stable React key and the eventual `claim_winnings`/
@@ -40,6 +34,12 @@ export interface Position {
   fixtureStatus: FixtureStatus | null;
   kickoffTs: number;
   marketStatus: MarketStatus;
+  /** Unix seconds — `Market.resolved_at`, `0` while unresolved (never
+   * set by `void_market`, only `resolve_market` — see that instruction's
+   * own doc comment). Used to order streak calculations (`lib/portfolio.ts`,
+   * `app/api/leaderboard/route.ts`'s server-side equivalent) by *when*
+   * a position was decided, not just *that* it was. */
+  resolvedAt: number;
   outcome: Outcome;
   /** Team name (or "Draw") for `outcome` — the one place this label is
    * computed, so PositionRow never re-derives it from raw team strings. */
@@ -91,6 +91,7 @@ type DecodedMarket = {
   outcome: number;
   pools: [BN, BN, BN];
   totalPool: BN;
+  resolvedAt: BN;
 };
 
 type DecodedBet = {
@@ -105,40 +106,6 @@ function pickLabel(outcome: Outcome, home: string, away: string): string {
 
 function decodeMarketStatus(status: Record<string, unknown>): Lowercase<MarketStatus> {
   return Object.keys(status)[0] as Lowercase<MarketStatus>;
-}
-
-/** The one place `status`/`estPayout`/`payout` are derived together —
- * see `PositionStatus`'s own doc comment for why the branch order below
- * (claimed first) is exhaustive and unambiguous. */
-function classify(
-  bet: DecodedBet,
-  market: DecodedMarket,
-): Pick<Position, "status" | "estPayout" | "payout"> {
-  const outcome = bet.outcome as Outcome;
-  const amount = BigInt(bet.amount.toString());
-  const pools = market.pools.map((p) => BigInt(p.toString())) as [bigint, bigint, bigint];
-  const totalPool = BigInt(market.totalPool.toString());
-  const marketStatus = decodeMarketStatus(market.status);
-  const marketOutcome = market.outcome === 255 ? null : (market.outcome as Outcome);
-
-  if (bet.claimed) {
-    const payout = marketStatus === "voided" ? amount : computePayout(amount, totalPool, pools[outcome]);
-    return { status: "claimed", estPayout: null, payout };
-  }
-
-  if (marketStatus === "open" || marketStatus === "locked") {
-    return { status: "pending", estPayout: computePayout(amount, totalPool, pools[outcome]), payout: null };
-  }
-
-  if (marketStatus === "resolved") {
-    if (marketOutcome === outcome) {
-      return { status: "won", estPayout: null, payout: computePayout(amount, totalPool, pools[outcome]) };
-    }
-    return { status: "lost", estPayout: null, payout: null };
-  }
-
-  // voided
-  return { status: "refundable", estPayout: null, payout: amount };
 }
 
 /**
@@ -243,7 +210,17 @@ export function useMyBets(): UseMyBetsResult {
         const home = fixture?.home ?? market.home;
         const away = fixture?.away ?? market.away;
         const outcome = bet.account.outcome as Outcome;
-        const { status, estPayout, payout } = classify(bet.account, market);
+        const amount = BigInt(bet.account.amount.toString());
+        const marketStatus = decodeMarketStatus(market.status);
+        const { status, estPayout, payout } = classifyBet(
+          { outcome, amount, claimed: bet.account.claimed },
+          {
+            status: marketStatus,
+            outcome: market.outcome === 255 ? null : (market.outcome as Outcome),
+            pools: market.pools.map((p) => BigInt(p.toString())) as [bigint, bigint, bigint],
+            totalPool: BigInt(market.totalPool.toString()),
+          },
+        );
 
         built.push({
           betPda: bet.publicKey.toBase58(),
@@ -254,10 +231,11 @@ export function useMyBets(): UseMyBetsResult {
           stage: fixture?.stage ?? null,
           fixtureStatus: fixture?.status ?? null,
           kickoffTs: market.kickoffTs.toNumber(),
-          marketStatus: decodeMarketStatus(market.status).toUpperCase() as MarketStatus,
+          marketStatus: marketStatus.toUpperCase() as MarketStatus,
+          resolvedAt: market.resolvedAt.toNumber(),
           outcome,
           pickLabel: pickLabel(outcome, home, away),
-          amount: BigInt(bet.account.amount.toString()),
+          amount,
           status,
           estPayout,
           payout,

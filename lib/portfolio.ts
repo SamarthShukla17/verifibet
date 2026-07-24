@@ -3,6 +3,7 @@
  * (`lib/hooks/useMyBets.ts`) — no I/O, no React, `bigint` throughout
  * (money math, see CLAUDE.md's bigint/never-floats convention).
  */
+import { computeStreak } from "@/lib/parimutuel";
 import type { Position } from "@/lib/hooks/useMyBets";
 
 export interface PortfolioStats {
@@ -29,9 +30,16 @@ export interface PortfolioStats {
    * win nor a loss. */
   wins: number;
   losses: number;
+  /** Consecutive wins counting back from the most recently *resolved*
+   * position (`lib/parimutuel.ts`'s `computeStreak`) — same win/loss set
+   * as `wins`/`losses` above (void positions excluded, not a break),
+   * ordered by `resolvedAt`. `0` with no resolved wins at all, including
+   * "most recent decided position was a loss" — this is a *current* win
+   * streak, not a signed win/loss streak. */
+  streak: number;
 }
 
-const ZERO_STATS: PortfolioStats = { activeStake: 0n, claimable: 0n, pnl: 0n, wins: 0, losses: 0 };
+const ZERO_STATS: PortfolioStats = { activeStake: 0n, claimable: 0n, pnl: 0n, wins: 0, losses: 0, streak: 0 };
 
 export function computePortfolioStats(positions: readonly Position[]): PortfolioStats {
   let activeStake = 0n;
@@ -39,6 +47,7 @@ export function computePortfolioStats(positions: readonly Position[]): Portfolio
   let pnl = 0n;
   let wins = 0;
   let losses = 0;
+  const results: { won: boolean; resolvedAt: number }[] = [];
 
   for (const p of positions) {
     switch (p.status) {
@@ -49,6 +58,7 @@ export function computePortfolioStats(positions: readonly Position[]): Portfolio
         claimable += p.payout ?? 0n;
         pnl += (p.payout ?? 0n) - p.amount;
         wins++;
+        results.push({ won: true, resolvedAt: p.resolvedAt });
         break;
       case "refundable":
         claimable += p.payout ?? 0n; // payout === amount — see PortfolioStats.pnl doc comment
@@ -56,17 +66,19 @@ export function computePortfolioStats(positions: readonly Position[]): Portfolio
       case "lost":
         pnl -= p.amount;
         losses++;
+        results.push({ won: false, resolvedAt: p.resolvedAt });
         break;
       case "claimed":
         if (p.marketStatus !== "VOIDED") {
           pnl += (p.payout ?? 0n) - p.amount;
           wins++;
+          results.push({ won: true, resolvedAt: p.resolvedAt });
         }
         break;
     }
   }
 
-  return { activeStake, claimable, pnl, wins, losses };
+  return { activeStake, claimable, pnl, wins, losses, streak: computeStreak(results) };
 }
 
 /** Same instance every call for an empty list — a stable reference a

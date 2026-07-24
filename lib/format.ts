@@ -1,7 +1,8 @@
 /**
- * Display-only bigint -> string formatting. Never used for money math
- * itself (see `lib/parimutuel.ts`) — purely how an already-computed
- * bigint amount gets shown to a person.
+ * Display-only formatting. The bigint -> string helpers here are never
+ * used for money math itself (see `lib/parimutuel.ts`) — purely how an
+ * already-computed bigint amount gets shown to a person; `shortenPubkey`
+ * is the same idea applied to addresses instead of amounts.
  */
 
 /**
@@ -70,4 +71,11 @@ export function usdcToInputValue(baseUnits: bigint): string {
 
   const fractionStr = fraction.toString().padStart(6, "0").replace(/0+$/, "");
   return `${whole.toString()}.${fractionStr}`;
+}
+
+/** `"ULxB..F7e6"` — a base58 pubkey's first 4 and last 4 characters.
+ * Shared here rather than each caller (`ActivityTab`, the leaderboard)
+ * defining its own copy. */
+export function shortenPubkey(pubkey: string): string {
+  return `${pubkey.slice(0, 4)}..${pubkey.slice(-4)}`;
 }

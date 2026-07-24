@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computePayout, estimatePayout } from "@/lib/parimutuel";
+import { classifyBet, computePayout, computeStreak, estimatePayout, type MarketInput } from "@/lib/parimutuel";
 
 describe("estimatePayout", () => {
   it("first bet on a brand-new market (all pools zero) gets even odds — exactly its own stake back", () => {
@@ -72,5 +72,93 @@ describe("computePayout", () => {
 
   it("large real-world USDC base-unit magnitudes stay exact (BigInt, no float rounding)", () => {
     expect(computePayout(1_000_000n, 11_000_000n, 3_000_000n)).toBe(3_666_666n);
+  });
+});
+
+function market(overrides: Partial<MarketInput>): MarketInput {
+  return { status: "open", outcome: null, pools: [0n, 0n, 0n], totalPool: 0n, ...overrides };
+}
+
+describe("classifyBet", () => {
+  it("open/locked market -> pending, with a live estimate", () => {
+    const bet = { outcome: 0 as const, amount: 10n, claimed: false };
+    for (const status of ["open", "locked"] as const) {
+      const result = classifyBet(bet, market({ status, pools: [100n, 50n, 50n], totalPool: 200n }));
+      expect(result.status).toBe("pending");
+      expect(result.estPayout).toBe(computePayout(10n, 200n, 100n));
+      expect(result.payout).toBeNull();
+    }
+  });
+
+  it("resolved + outcome matches -> won, with the exact settled payout", () => {
+    const result = classifyBet(
+      { outcome: 0, amount: 10n, claimed: false },
+      market({ status: "resolved", outcome: 0, pools: [100n, 50n, 50n], totalPool: 200n }),
+    );
+    expect(result.status).toBe("won");
+    expect(result.payout).toBe(computePayout(10n, 200n, 100n));
+    expect(result.estPayout).toBeNull();
+  });
+
+  it("resolved + outcome doesn't match -> lost, no payout", () => {
+    const result = classifyBet(
+      { outcome: 2, amount: 10n, claimed: false },
+      market({ status: "resolved", outcome: 0, pools: [100n, 50n, 50n], totalPool: 200n }),
+    );
+    expect(result).toEqual({ status: "lost", estPayout: null, payout: null });
+  });
+
+  it("voided (unclaimed) -> refundable, payout is the exact stake back", () => {
+    const result = classifyBet({ outcome: 1, amount: 7n, claimed: false }, market({ status: "voided" }));
+    expect(result).toEqual({ status: "refundable", estPayout: null, payout: 7n });
+  });
+
+  it("claimed takes priority over market status, and picks the right payout formula", () => {
+    const winClaim = classifyBet(
+      { outcome: 0, amount: 10n, claimed: true },
+      market({ status: "resolved", outcome: 0, pools: [100n, 50n, 50n], totalPool: 200n }),
+    );
+    expect(winClaim).toEqual({ status: "claimed", estPayout: null, payout: computePayout(10n, 200n, 100n) });
+
+    const refundClaim = classifyBet({ outcome: 1, amount: 7n, claimed: true }, market({ status: "voided" }));
+    expect(refundClaim).toEqual({ status: "claimed", estPayout: null, payout: 7n });
+  });
+});
+
+describe("computeStreak", () => {
+  it("0 for no results", () => {
+    expect(computeStreak([])).toBe(0);
+  });
+
+  it("counts consecutive wins from the most recent, stops at the first loss", () => {
+    expect(
+      computeStreak([
+        { won: true, resolvedAt: 100 },
+        { won: false, resolvedAt: 200 },
+        { won: true, resolvedAt: 300 },
+        { won: true, resolvedAt: 400 },
+      ]),
+    ).toBe(2); // 400, 300 win; 200 loss stops it; the 100 win is irrelevant
+  });
+
+  it("0 when the most recent result is a loss", () => {
+    expect(computeStreak([{ won: true, resolvedAt: 100 }, { won: false, resolvedAt: 200 }])).toBe(0);
+  });
+
+  it("re-sorts by resolvedAt regardless of input order", () => {
+    const results = [
+      { won: false, resolvedAt: 300 },
+      { won: true, resolvedAt: 100 },
+      { won: true, resolvedAt: 200 },
+    ];
+    expect(computeStreak(results)).toBe(0); // most recent (300) is a loss
+    expect(computeStreak([...results].reverse())).toBe(0); // order-independent
+  });
+
+  it("does not mutate the input array", () => {
+    const results = [{ won: true, resolvedAt: 200 }, { won: true, resolvedAt: 100 }];
+    const copy = [...results];
+    computeStreak(results);
+    expect(results).toEqual(copy);
   });
 });

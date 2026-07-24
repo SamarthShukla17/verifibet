@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PositionRow } from "@/components/bet/PositionRow";
+import { StreakChip } from "@/components/bet/StreakChip";
 import { useMyBets } from "@/lib/hooks/useMyBets";
 import type { Position } from "@/lib/hooks/useMyBets";
 import {
@@ -51,15 +52,18 @@ function StatCard({
   label,
   value,
   valueClassName,
+  children,
 }: {
   label: string;
   value: string;
   valueClassName?: string;
+  children?: React.ReactNode;
 }) {
   return (
     <div className="rounded-xl border border-border bg-card p-4">
       <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className={cn("tabular mt-1 text-xl font-bold text-foreground", valueClassName)}>{value}</p>
+      {children && <div className="mt-1.5">{children}</div>}
     </div>
   );
 }
@@ -207,7 +211,9 @@ export default function PortfolioPage() {
               value={`${formatSignedUsdc(stats.pnl)} USDC`}
               valueClassName={stats.pnl > 0n ? "text-primary" : stats.pnl < 0n ? "text-destructive" : undefined}
             />
-            <StatCard label="W–L Record" value={`${stats.wins}–${stats.losses}`} />
+            <StatCard label="W–L Record" value={`${stats.wins}–${stats.losses}`}>
+              {stats.streak > 0 && <StreakChip streak={stats.streak} />}
+            </StatCard>
           </div>
         )}
 

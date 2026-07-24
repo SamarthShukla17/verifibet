@@ -3,7 +3,7 @@
  * `bigint` throughout (USDC base units, 6dp — see CLAUDE.md's
  * bigint/never-floats convention); this is money math, not display math.
  */
-import type { Outcome } from "@/lib/types";
+import type { MarketStatus, Outcome } from "@/lib/types";
 
 /**
  * Estimates the payout a bet of `amount` on `outcome` would receive if
@@ -77,4 +77,106 @@ export function estimatePayout(
 export function computePayout(amount: bigint, totalPool: bigint, winningPool: bigint): bigint {
   if (winningPool <= 0n) return 0n;
   return (amount * totalPool) / winningPool;
+}
+
+/**
+ * `pending` while the market hasn't resolved/voided yet; `won`/`lost`
+ * once resolved (whichever `bet.outcome === market.outcome` decides);
+ * `refundable` once voided; `claimed` — checked *before* any of the
+ * above — once `bet.claimed` is true, regardless of which of the two
+ * claim instructions (`claim_winnings` or `claim_refund`) actually set
+ * it. Mutually exclusive and exhaustive: a losing bet can never become
+ * `claimed` (`claim_winnings` on-chain requires `bet.outcome ===
+ * market.outcome`, so `lost` is always terminal), and a market is never
+ * simultaneously `Resolved` and `Voided`, so `claimed`'s own payout math
+ * never has to guess which path produced it — the market's current
+ * status says so unambiguously.
+ */
+export type SettlementStatus = "pending" | "won" | "lost" | "refundable" | "claimed";
+
+export interface BetInput {
+  outcome: Outcome;
+  /** USDC base units, 6dp. */
+  amount: bigint;
+  claimed: boolean;
+}
+
+export interface MarketInput {
+  status: Lowercase<MarketStatus>;
+  /** `null` when unresolved (mirrors `Market.outcome`'s `OUTCOME_UNSET`
+   * sentinel, already decoded to `null` by the caller). */
+  outcome: Outcome | null;
+  pools: readonly [bigint, bigint, bigint];
+  totalPool: bigint;
+}
+
+export interface Settlement {
+  status: SettlementStatus;
+  /** Live "if resolved right now" estimate — only set while `pending`. */
+  estPayout: bigint | null;
+  /** The real, exact amount — set for `won`/`refundable`/`claimed`,
+   * `null` for `pending` (no final number exists yet) and `lost`
+   * (nothing to claim). */
+  payout: bigint | null;
+}
+
+/**
+ * The one place a `Bet` + its `Market` are classified into a settlement
+ * outcome — shared by `lib/hooks/useMyBets.ts` (one connected wallet,
+ * client-side) and `app/api/leaderboard/route.ts` (every wallet,
+ * server-side) so "what does it mean for a bet to be won/lost/claimed"
+ * can't drift between the two pages that both need to agree on it.
+ */
+export function classifyBet(bet: BetInput, market: MarketInput): Settlement {
+  if (bet.claimed) {
+    const payout =
+      market.status === "voided" ? bet.amount : computePayout(bet.amount, market.totalPool, market.pools[bet.outcome]);
+    return { status: "claimed", estPayout: null, payout };
+  }
+
+  if (market.status === "open" || market.status === "locked") {
+    return {
+      status: "pending",
+      estPayout: computePayout(bet.amount, market.totalPool, market.pools[bet.outcome]),
+      payout: null,
+    };
+  }
+
+  if (market.status === "resolved") {
+    if (market.outcome === bet.outcome) {
+      return {
+        status: "won",
+        estPayout: null,
+        payout: computePayout(bet.amount, market.totalPool, market.pools[bet.outcome]),
+      };
+    }
+    return { status: "lost", estPayout: null, payout: null };
+  }
+
+  // voided
+  return { status: "refundable", estPayout: null, payout: bet.amount };
+}
+
+export interface SettlementResult {
+  won: boolean;
+  /** Unix seconds — `Market.resolved_at`. */
+  resolvedAt: number;
+}
+
+/**
+ * Consecutive wins counting back from the most recently resolved result
+ * — stops at the first loss (or the list's end). Callers exclude
+ * void/refund outcomes before calling this (see `classifyBet`'s
+ * `refundable`/void-`claimed` cases): those are neither a win nor a
+ * loss, so this function only ever sees genuine win/loss results, never
+ * has to decide what a void does to a streak.
+ */
+export function computeStreak(results: readonly SettlementResult[]): number {
+  const sorted = [...results].sort((a, b) => b.resolvedAt - a.resolvedAt);
+  let streak = 0;
+  for (const result of sorted) {
+    if (!result.won) break;
+    streak++;
+  }
+  return streak;
 }

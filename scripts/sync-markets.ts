@@ -135,7 +135,11 @@ export interface SyncResult {
   error?: string;
 }
 
-async function fetchTournamentFixtures(fixtureId?: number): Promise<TxFixture[]> {
+/** Exported for `scripts/seed-bets.ts`, which needs the same real
+ * fixture list to pick fresh (not-yet-marketed) fixtures from — kept as
+ * one function rather than a second copy of the `TOURNAMENT_START_EPOCH_DAY`/
+ * `txlineFetch` call. */
+export async function fetchTournamentFixtures(fixtureId?: number): Promise<TxFixture[]> {
   const { txlineFetch } = await import("@/lib/txline/http");
   const res = await txlineFetch(
     `/api/fixtures/snapshot?competitionId=${WORLD_CUP_COMPETITION_ID}&startEpochDay=${TOURNAMENT_START_EPOCH_DAY}`,

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ArrowUpRight } from "lucide-react";
-import { formatUsdc } from "@/lib/format";
+import { formatUsdc, shortenPubkey } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Outcome } from "@/lib/types";
 
@@ -13,10 +13,6 @@ interface BetActivity {
   user: string;
   outcome: Outcome;
   amount: string;
-}
-
-function shortenPubkey(pubkey: string): string {
-  return `${pubkey.slice(0, 4)}..${pubkey.slice(-4)}`;
 }
 
 function outcomeLabel(outcome: Outcome, home: string, away: string): string {
