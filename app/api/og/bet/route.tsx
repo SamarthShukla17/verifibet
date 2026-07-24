@@ -30,6 +30,16 @@ import { getReadOnlyProgram } from "@/lib/solana/program";
 import { flagUrl } from "@/lib/flags";
 
 export const runtime = "nodejs";
+// `force-dynamic`, matching every other route.ts here that reads
+// per-request data (see app/api/fixtures, app/api/markets/[fixtureId],
+// app/api/leaderboard): without it, Next's route-handler static
+// optimization can decide this GET has no dynamic dependency (reading
+// `request.url` via a manually-constructed `new URL(...)` isn't always
+// recognized as request-dependent the way `request.nextUrl` is) and
+// cache the *first* response, then serve that exact same image back for
+// every other combination of query params after it — silently wrong for
+// every card but the one that happened to render first.
+export const dynamic = "force-dynamic";
 
 const WIDTH = 1200;
 const HEIGHT = 630;
@@ -260,6 +270,12 @@ export async function GET(request: NextRequest) {
           ? [{ name: "Space Grotesk", data: spaceGroteskBold, weight: 700 as const, style: "normal" as const }]
           : []),
       ],
+      // Belt-and-suspenders alongside `dynamic = "force-dynamic"` above —
+      // every position's card is a distinct set of query params, so
+      // nothing (a CDN in front of this in production, a link-unfurl
+      // bot's own fetch cache, an intermediate proxy) should ever treat
+      // one of these responses as reusable for a different URL.
+      headers: { "Cache-Control": "no-store" },
     },
   );
 }
