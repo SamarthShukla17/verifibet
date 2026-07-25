@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLiveFixture } from "@/lib/hooks/useLiveFixture";
 import { useMarketAccount } from "@/lib/hooks/useMarketAccount";
 import { usePlaceBet } from "@/lib/hooks/usePlaceBet";
-import { fixtureStatusFromActionAndStatusId } from "@/lib/txline/normalize";
+import { fixtureStatusFromActionAndStatusId, isForwardStatusTransition } from "@/lib/txline/normalize";
 import { isKnockoutStage, marketStatusFromFixtureStatus } from "@/lib/market";
 import { MatchHeader } from "@/components/match/MatchHeader";
 import { OddsChart } from "@/components/OddsChart";
@@ -59,10 +59,21 @@ export function MatchDetailBoard({
   // status-stream events arrive — the same mapping the tracker itself
   // uses (lib/txline/normalize.ts), so a viewer watching this exact page
   // can see a SCHEDULED match actually go LIVE without a reload.
+  //
+  // `isForwardStatusTransition` guards this exactly like
+  // `StatusTracker.transitionTo` does server-side — without it, a real,
+  // ordinary mid-match event with no `StatusId` (`suspend`, `comment`,
+  // `action_discarded`, ...) bounces this page's own header back to
+  // "not started" even though the fixture is genuinely still live or
+  // already finished. Confirmed the hard way narrating a demo replay
+  // through a `suspend` event that landed right after a goal (Session
+  // 7.3) — this bug predates that session, the demo replay just made it
+  // easy to actually hit.
   const [liveStatus, setLiveStatus] = useState<FixtureStatus>(status);
   useEffect(() => {
     if (!live.status) return;
-    setLiveStatus(fixtureStatusFromActionAndStatusId(live.status.action, live.status.statusId));
+    const next = fixtureStatusFromActionAndStatusId(live.status.action, live.status.statusId);
+    setLiveStatus((prev) => (isForwardStatusTransition(prev, next) ? next : prev));
   }, [live.status]);
 
   const isLive = liveStatus === "LIVE";

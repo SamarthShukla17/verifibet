@@ -32,7 +32,7 @@
 import { EventEmitter } from "node:events";
 import { getFixtures, getScores } from "@/lib/txline/client";
 import { getTxlineStream, type RawStatusEvent } from "@/lib/txline/stream";
-import { toFixture, toScoreEvent, fixtureStatusFromActionAndStatusId } from "@/lib/txline/normalize";
+import { toFixture, toScoreEvent, fixtureStatusFromActionAndStatusId, isForwardStatusTransition } from "@/lib/txline/normalize";
 import { isDemoFixtureId } from "@/lib/txline/demoScenarios";
 import type { Fixture, FixtureStatus, ScoreEvent } from "@/lib/types";
 import type { TxScore } from "@/lib/txline/types";
@@ -59,13 +59,6 @@ const SILENT_LIVE_THRESHOLD_MS = 120_000;
  * near as precise as the threshold, just frequent enough that a stalled
  * fixture isn't stuck for much longer than `SILENT_LIVE_THRESHOLD_MS`. */
 const SILENCE_CHECK_INTERVAL_MS = 30_000;
-
-/** Forward-only ordering `transitionTo` enforces — see its own doc comment. */
-const STATUS_RANK: Partial<Record<FixtureStatus, number>> = {
-  SCHEDULED: 0,
-  LIVE: 1,
-  FINISHED: 2,
-};
 
 export interface TrackedFixture extends Fixture {
   score: ScoreEvent | null;
@@ -218,32 +211,16 @@ export class StatusTracker extends EventEmitter {
   }
 
   /**
-   * Applies a newly-derived status, but only forward along `SCHEDULED ->
-   * LIVE -> FINISHED` — a real gap in TxLINE's own data, found by
-   * replaying a real fixture's full event history (see
-   * `lib/txline/statusTracker.test.ts`), makes this necessary, not just
-   * defensive: several `Action`s can occur at *any* point in a match
-   * (`suspend`, `comment`, `action_discarded`, `disconnected`, ...) while
-   * still carrying no `StatusId` at all — same gap
-   * `fixtureStatusFromActionAndStatusId` already documents for
-   * `game_finalised`, except these aren't a single well-known literal to
-   * special-case, so they fall back to `SCHEDULED` there. Applied naively,
-   * a mid-match `"suspend"` event would bounce a tracked fixture back to
-   * `SCHEDULED` and then back to `LIVE` on the next real event — spurious
-   * status flapping and a spurious repeat `onKickoff` fire. Blocking any
-   * move backward through the three real states TxLINE's data is
-   * confirmed to progress through in order fixes this at the tracker
-   * level without needing the stateless normalizer to somehow know a
-   * fixture's prior status. `POSTPONED`/`CANCELLED` aren't part of this
-   * ordering — never observed from real data, always applied unconditionally
-   * if they ever do show up.
+   * Applies a newly-derived status, but only forward — see
+   * `lib/txline/normalize.ts#isForwardStatusTransition`'s own doc comment
+   * for the real TxLINE data gap this guards against (a mid-match
+   * `"suspend"`-style event with no `StatusId` bouncing a tracked fixture
+   * back to `SCHEDULED`) and why every consumer of raw status events
+   * needs the same guard, not just this one.
    */
   private transitionTo(tracked: TrackedFixture, next: FixtureStatus): void {
     if (tracked.status === next) return;
-
-    const prevRank = STATUS_RANK[tracked.status];
-    const nextRank = STATUS_RANK[next];
-    if (prevRank !== undefined && nextRank !== undefined && nextRank < prevRank) return;
+    if (!isForwardStatusTransition(tracked.status, next)) return;
 
     const prev = tracked.status;
     tracked.status = next;

@@ -153,6 +153,42 @@ export function fixtureStatusFromActionAndStatusId(
   return "SCHEDULED";
 }
 
+/** Forward-only ordering `SCHEDULED -> LIVE -> FINISHED` —
+ * `POSTPONED`/`CANCELLED` deliberately aren't ranked (never observed from
+ * real data; any transition involving one is always allowed). */
+const STATUS_RANK: Partial<Record<FixtureStatus, number>> = {
+  SCHEDULED: 0,
+  LIVE: 1,
+  FINISHED: 2,
+};
+
+/**
+ * Whether moving from `prev` to `next` is a legitimate forward step
+ * through the real match progression, not a step backward. A real gap in
+ * TxLINE's own data — found by replaying a real fixture's full event
+ * history (see `lib/txline/statusTracker.test.ts`) — makes this
+ * necessary, not just defensive: several `Action`s can occur at *any*
+ * point in a match (`suspend`, `comment`, `action_discarded`,
+ * `disconnected`, ...) while carrying no `StatusId` at all, which
+ * `fixtureStatusFromActionAndStatusId` above can only map to `SCHEDULED`
+ * (the same gap it documents for `game_finalised`, except these aren't a
+ * single well-known literal to special-case). Applied naively, a
+ * mid-match `"suspend"` event would bounce a tracked fixture back to
+ * `SCHEDULED` — spurious status flapping. Every consumer of raw
+ * status/score events (`lib/txline/statusTracker.ts`'s `transitionTo`,
+ * `components/match/MatchDetailBoard.tsx`'s own live-status effect) must
+ * apply this same guard — a client-side consumer that skips it will
+ * genuinely flicker back to "not started" on a real, ordinary mid-match
+ * event, confirmed the hard way narrating a demo replay through exactly
+ * this sequence (a `suspend` event right after a `goal`).
+ */
+export function isForwardStatusTransition(prev: FixtureStatus, next: FixtureStatus): boolean {
+  const prevRank = STATUS_RANK[prev];
+  const nextRank = STATUS_RANK[next];
+  if (prevRank !== undefined && nextRank !== undefined && nextRank < prevRank) return false;
+  return true;
+}
+
 /**
  * GET /api/fixtures/snapshot entry -> domain `Fixture`. Deliberately
  * doesn't set `Fixture.isDemo` here even though it could (a demo fixture

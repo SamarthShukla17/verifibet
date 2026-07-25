@@ -3,7 +3,7 @@
  * file instead of connecting to TxLINE — the demo-replay `Source`
  * `lib/txline/stream.ts`'s own doc comment named as "planned for Session
  * 7.1" when it defined the `Source` interface specifically so
- * `TxlineStream` would never need to change to support this.
+ * `TxlineStream` would never need to change to support it.
  *
  * One `ReplaySource` instance replays exactly one `kind` ("odds" or
  * "scores") from one scenario — `lib/txline/stream.ts`'s
@@ -11,16 +11,24 @@
  * scenario, the same "one `TxlineStream` per upstream kind" shape it
  * already uses for the two real `NetworkSource`-backed streams. Both
  * `ReplaySource` instances for a scenario read the *same* `.ndjson` file
- * and each filter to their own `event` field — deliberately not a single
- * shared reader multiplexing to two consumers, since that would need its
- * own synchronization; two independent readers naturally interleave
- * correctly anyway, because both start their `t=0` reference at
- * (essentially) the same wall-clock instant (`TxlineStreamManager`
- * constructs and starts both synchronously, microseconds apart).
+ * and each filter to their own `event` field.
+ *
+ * ## Live control (Session 7.3)
+ *
+ * Speed, pause/play, and chapter jumps (`components/DemoControlPopover.tsx`,
+ * `POST /api/demo/control`) work by mutating `lib/txline/demoControl.ts`'s
+ * shared in-memory state — `waitContentMs` below polls it every
+ * `POLL_INTERVAL_MS` while waiting for the next event, exactly the
+ * "shared control object the ReplaySource polls between events" shape
+ * this was speced against, not a push/subscribe mechanism. Both
+ * instances (odds + scores) poll the same shared state independently and
+ * converge on the same jump target without needing to coordinate with
+ * each other directly.
  */
 import { readFileSync } from "node:fs";
 import type { RawSseEvent, Source, StreamKind } from "@/lib/txline/stream";
-import { getDemoSpeed, scenarioNdjsonPath } from "@/lib/txline/demoScenarios";
+import { scenarioNdjsonPath } from "@/lib/txline/demoScenarios";
+import { getDemoControlState } from "@/lib/txline/demoControl";
 
 interface NdjsonLine {
   /** ms since the scenario's own t=0 — see `scripts/build-demo-scenario.ts`. */
@@ -63,14 +71,8 @@ export interface ReplaySourceOptions {
   /** `demo-data/scenarios/<scenario>.ndjson`'s basename. */
   scenario: string;
   kind: StreamKind;
-  /** Real-ms-per-replayed-ms divisor — defaults to `DEMO_SPEED`
-   * (`lib/txline/demoScenarios.ts#getDemoSpeed`, itself defaulting to 60).
-   * A 2-hour recording plays back in 2 minutes at the default. */
-  speed?: number;
   /** Replay the scenario again from the top once it ends, rather than
-   * holding the final state forever. Off by default — see this module's
-   * doc comment and the class doc comment below for why "holding" needs
-   * no special code. */
+   * holding the final state forever. Off by default. */
   loop?: boolean;
   /** Pause before restarting when `loop` is on — a dramatic instant reset
    * from "full time, penalties decided" straight back to "kickoff" would
@@ -79,44 +81,92 @@ export interface ReplaySourceOptions {
 }
 
 const DEFAULT_LOOP_DELAY_MS = 5_000;
+/** Real ms between control-state checks while waiting for the next event
+ * — bounds how quickly a pause/speed/jump takes visible effect,
+ * independent of the current playback speed (a 100-150ms real delay
+ * reads as instant to a narrator; this is not "poll once per scheduled
+ * event", it's "poll continuously while idle between them"). */
+const POLL_INTERVAL_MS = 120;
 
 /**
  * Replays one `kind`'s events from a recorded scenario, waiting
  * `(event.t - previousEvent.t) / speed` between each — real inter-event
- * timing, just compressed. Yields nothing further after the last event
- * unless `loop` is set: `TxlineStream.consume()`'s `for await` loop simply
- * exits when this generator returns, same as a `NetworkSource` whose
- * connection closed cleanly, and nothing re-emits or resets whatever
- * `StatusTracker`/`useLiveFixture` last received — "holding the final
- * state" is what *not* sending anything more already means, not a
- * distinct behavior this class has to implement.
+ * timing, just compressed, with `speed` and position both live-adjustable
+ * mid-replay via `lib/txline/demoControl.ts`. Yields nothing further
+ * after the last event unless `loop` is set: `TxlineStream.consume()`'s
+ * `for await` loop simply exits when this generator returns, same as a
+ * `NetworkSource` whose connection closed cleanly — "holding the final
+ * state" is what *not* sending anything more already means.
  */
 export class ReplaySource implements Source {
   constructor(private readonly options: ReplaySourceOptions) {}
 
   async *connect(signal?: AbortSignal): AsyncIterable<RawSseEvent> {
     const lines = readLines(this.options.scenario, this.options.kind);
-    const speed = this.options.speed ?? getDemoSpeed();
-    const loopDelayMs = this.options.loopDelayMs ?? DEFAULT_LOOP_DELAY_MS;
-
     if (lines.length === 0) return;
 
     do {
+      let index = 0;
       let previousT = 0;
-      for (const line of lines) {
+      let ackedJumpGeneration = getDemoControlState().jumpGeneration;
+
+      while (index < lines.length) {
         if (signal?.aborted) return;
-        const waitMs = (line.t - previousT) / speed;
-        if (waitMs > 0) await sleep(waitMs, signal);
+
+        const line = lines[index];
+        const jumped = await this.waitContentMs(line.t - previousT, ackedJumpGeneration, signal);
         if (signal?.aborted) return;
-        previousT = line.t;
+
+        if (jumped) {
+          const control = getDemoControlState();
+          ackedJumpGeneration = control.jumpGeneration;
+          let nextIndex = lines.findIndex((l) => l.t >= control.jumpTargetT);
+          if (nextIndex === -1) nextIndex = lines.length;
+          index = nextIndex;
+          previousT = control.jumpTargetT;
+          continue;
+        }
 
         yield { event: this.options.kind, data: JSON.stringify(this.rewriteTs(line.data)) };
+        previousT = line.t;
+        index++;
       }
 
       if (this.options.loop && !signal?.aborted) {
-        await sleep(loopDelayMs, signal);
+        await sleep(this.options.loopDelayMs ?? DEFAULT_LOOP_DELAY_MS, signal);
       }
     } while (this.options.loop && !signal?.aborted);
+  }
+
+  /**
+   * Waits `targetContentMs` of *content* time, consumed at whatever the
+   * live `speed` is on each `POLL_INTERVAL_MS` real-time tick (so a speed
+   * change mid-wait shortens/lengthens what's left of *this* wait too,
+   * not just future ones), frozen entirely while `paused`. Returns `true`
+   * — abandoning the wait immediately — the moment it notices
+   * `jumpGeneration` has moved past `ackedJumpGeneration`, i.e. a jump was
+   * requested since the caller last acted on one.
+   */
+  private async waitContentMs(
+    targetContentMs: number,
+    ackedJumpGeneration: number,
+    signal?: AbortSignal,
+  ): Promise<boolean> {
+    let remaining = targetContentMs;
+
+    while (remaining > 0) {
+      if (signal?.aborted) return false;
+      if (getDemoControlState().jumpGeneration !== ackedJumpGeneration) return true;
+
+      await sleep(POLL_INTERVAL_MS, signal);
+      if (signal?.aborted) return false;
+
+      const control = getDemoControlState();
+      if (control.jumpGeneration !== ackedJumpGeneration) return true;
+      if (!control.paused) remaining -= POLL_INTERVAL_MS * control.speed;
+    }
+
+    return false;
   }
 
   /**

@@ -3,7 +3,13 @@ import fixturesSample from "@/fixtures.sample.json";
 import brazilNorwayScores from "@/scores.sample.json";
 import paraguayGermanyScores from "@/scores-r32-paraguay-germany.sample.json";
 import argentinaCapeVerdeScores from "@/scores-r32-argentina-capeverde.sample.json";
-import { toFixture, toOddsSnapshot, toScoreEvent, deriveOutcome } from "@/lib/txline/normalize";
+import {
+  toFixture,
+  toOddsSnapshot,
+  toScoreEvent,
+  deriveOutcome,
+  isForwardStatusTransition,
+} from "@/lib/txline/normalize";
 import type { TxFixture, TxOdds, TxScore } from "@/lib/txline/types";
 import type { ScoreEvent } from "@/lib/types";
 
@@ -276,5 +282,33 @@ describe("toOddsSnapshot", () => {
 
   it("returns null when price labels don't match any known 1X2 convention", () => {
     expect(toOddsSnapshot({ ...synthetic, PriceNames: ["Alpha", "Beta", "Gamma"] })).toBeNull();
+  });
+});
+
+describe("isForwardStatusTransition", () => {
+  // Regression test for a real bug (found narrating a demo replay through a
+  // `suspend` event right after a goal, Session 7.3): a mid-match event with
+  // no StatusId derives SCHEDULED via fixtureStatusFromActionAndStatusId,
+  // and every raw-status-event consumer must reject that as a transition
+  // rather than bouncing a LIVE/FINISHED fixture backward.
+  it("allows SCHEDULED -> LIVE -> FINISHED", () => {
+    expect(isForwardStatusTransition("SCHEDULED", "LIVE")).toBe(true);
+    expect(isForwardStatusTransition("LIVE", "FINISHED")).toBe(true);
+    expect(isForwardStatusTransition("SCHEDULED", "FINISHED")).toBe(true);
+  });
+
+  it("rejects LIVE -> SCHEDULED and FINISHED -> LIVE (the suspend-event bug)", () => {
+    expect(isForwardStatusTransition("LIVE", "SCHEDULED")).toBe(false);
+    expect(isForwardStatusTransition("FINISHED", "LIVE")).toBe(false);
+    expect(isForwardStatusTransition("FINISHED", "SCHEDULED")).toBe(false);
+  });
+
+  it("allows a same-status transition (caller's own equality check handles the no-op)", () => {
+    expect(isForwardStatusTransition("LIVE", "LIVE")).toBe(true);
+  });
+
+  it("treats a status outside STATUS_RANK (POSTPONED) as always allowed through", () => {
+    expect(isForwardStatusTransition("POSTPONED", "LIVE")).toBe(true);
+    expect(isForwardStatusTransition("LIVE", "POSTPONED")).toBe(true);
   });
 });
