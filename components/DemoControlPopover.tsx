@@ -3,9 +3,13 @@
 import { Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { DemoChapter } from "@/lib/txline/demoScenarios";
+import type { DemoChapter, DemoScenarioSummary, DemoSource } from "@/lib/txline/demoScenarios";
 
 export interface DemoControlPopoverProps {
+  scenarios: DemoScenarioSummary[];
+  selectedScenario: string;
+  onSelectScenario: (scenario: string) => void;
+  source: DemoSource | null;
   chapters: DemoChapter[];
   speed: number;
   paused: boolean;
@@ -18,16 +22,39 @@ export interface DemoControlPopoverProps {
 const MIN_SPEED = 1;
 const MAX_SPEED = 240;
 
+/** "Recorded beats reconstructed beats synthetic" isn't just a sort
+ * order (`lib/txline/demoScenarios.ts#sourcePriority`) — it's also a
+ * visual hierarchy here, so a viewer can tell at a glance how real a
+ * scenario's underlying data is without reading the tooltip-length
+ * explanation every time. */
+const SOURCE_STYLES: Record<DemoSource, string> = {
+  recorded: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400",
+  reconstructed: "border-accent-gold/40 bg-accent-gold/10 text-accent-gold",
+  synthetic: "border-muted-foreground/30 bg-muted text-muted-foreground",
+};
+
+const SOURCE_LABELS: Record<DemoSource, string> = {
+  recorded: "Recorded",
+  reconstructed: "Reconstructed",
+  synthetic: "Synthetic",
+};
+
 /**
- * The panel `components/DemoReplayBanner.tsx`'s pill opens — speed
- * slider, chapter jump buttons (from the active scenario's hand-written
- * `.chapters.json`), and pause/play. Purely a controlled view: every
- * value shown and every action taken flows through props, so the
- * keyboard shortcut (⌘/Ctrl+→, wired in the banner so it works whether
- * or not this popover is even open) and this panel's own buttons can
- * never disagree about what state the replay is actually in.
+ * The panel `components/DemoReplayBanner.tsx`'s pill opens — a scenario
+ * picker (Session 7.4, listing every registered scenario, most-real
+ * first) with an honest source badge, speed slider, chapter jump buttons
+ * (from the active scenario's hand-written `.chapters.json`), and
+ * pause/play. Purely a controlled view: every value shown and every
+ * action taken flows through props, so the keyboard shortcut (⌘/Ctrl+→,
+ * wired in the banner so it works whether or not this popover is even
+ * open) and this panel's own buttons can never disagree about what state
+ * the replay is actually in.
  */
 export function DemoControlPopover({
+  scenarios,
+  selectedScenario,
+  onSelectScenario,
+  source,
   chapters,
   speed,
   paused,
@@ -43,7 +70,33 @@ export function DemoControlPopover({
         className,
       )}
     >
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Scenario</p>
+        {source && (
+          <span
+            className={cn(
+              "rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+              SOURCE_STYLES[source],
+            )}
+          >
+            {SOURCE_LABELS[source]}
+          </span>
+        )}
+      </div>
+      <select
+        value={selectedScenario}
+        onChange={(e) => onSelectScenario(e.target.value)}
+        className="mt-1.5 w-full rounded-md border border-border bg-secondary px-2 py-1.5 text-sm text-foreground"
+        aria-label="Demo scenario"
+      >
+        {scenarios.map((s) => (
+          <option key={s.scenario} value={s.scenario}>
+            {s.title} ({SOURCE_LABELS[s.source]})
+          </option>
+        ))}
+      </select>
+
+      <div className="mt-4 flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Speed</p>
         <span className="tabular text-sm font-bold text-accent-gold">{speed}×</span>
       </div>

@@ -7,9 +7,14 @@
  * are, so Next dev's hot-reload reuses the same state across a module
  * re-evaluation instead of resetting playback position on every save.
  *
- * One shared state, not per-scenario: this app runs exactly one active
- * demo scenario at a time (see `lib/txline/demoScenarios.ts`'s own doc
- * comment), so there's nothing to key control state on yet.
+ * **Keyed per scenario** (Session 7.4) — `lib/txline/stream.ts`'s
+ * `TxlineStreamManager` already runs one `ReplaySource` pair per
+ * *registered* scenario concurrently, not just the one the pill happens
+ * to be showing (see that module's own doc comment), so a single shared
+ * state would mean jumping one scenario's chapters also yanked every
+ * other scenario's replay to the same (likely out-of-range) offset. Each
+ * scenario gets its own independent `speed`/`paused`/jump position;
+ * narrating one demo match never affects another's.
  *
  * **Known limitation, stated plainly rather than silently papered over**:
  * jumping *backward* (e.g. "Kickoff" after already reaching "Full-time")
@@ -41,41 +46,46 @@ export interface DemoControlState {
 
 declare global {
   // eslint-disable-next-line no-var
-  var __demoControl: DemoControlState | undefined;
+  var __demoControl: Map<string, DemoControlState> | undefined;
 }
 
-function state(): DemoControlState {
+function stateMap(): Map<string, DemoControlState> {
   if (!globalThis.__demoControl) {
-    globalThis.__demoControl = {
-      speed: getDemoSpeed(),
-      paused: false,
-      jumpGeneration: 0,
-      jumpTargetT: 0,
-    };
+    globalThis.__demoControl = new Map();
   }
   return globalThis.__demoControl;
+}
+
+function state(scenario: string): DemoControlState {
+  const map = stateMap();
+  let s = map.get(scenario);
+  if (!s) {
+    s = { speed: getDemoSpeed(), paused: false, jumpGeneration: 0, jumpTargetT: 0 };
+    map.set(scenario, s);
+  }
+  return s;
 }
 
 /** A snapshot, not a live reference — callers should re-call this rather
  * than cache the result across an `await`, exactly the "poll between
  * events" shape this module exists for. */
-export function getDemoControlState(): DemoControlState {
-  return { ...state() };
+export function getDemoControlState(scenario: string): DemoControlState {
+  return { ...state(scenario) };
 }
 
-export function setDemoSpeed(speed: number): void {
-  state().speed = Math.max(1, Math.min(240, speed));
+export function setDemoSpeed(scenario: string, speed: number): void {
+  state(scenario).speed = Math.max(1, Math.min(240, speed));
 }
 
-export function setDemoPaused(paused: boolean): void {
-  state().paused = paused;
+export function setDemoPaused(scenario: string, paused: boolean): void {
+  state(scenario).paused = paused;
 }
 
 /** Jumping always resumes playback (`paused = false`) — the narration use
  * case is "skip to the goal and keep going," not "skip to the goal and
  * sit there paused." */
-export function jumpDemoTo(t: number): void {
-  const s = state();
+export function jumpDemoTo(scenario: string, t: number): void {
+  const s = state(scenario);
   s.jumpTargetT = Math.max(0, t);
   s.jumpGeneration += 1;
   s.paused = false;

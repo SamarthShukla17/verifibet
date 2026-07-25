@@ -13,17 +13,18 @@
  * `ReplaySource` instances for a scenario read the *same* `.ndjson` file
  * and each filter to their own `event` field.
  *
- * ## Live control (Session 7.3)
+ * ## Live control (Session 7.3, per-scenario since Session 7.4)
  *
  * Speed, pause/play, and chapter jumps (`components/DemoControlPopover.tsx`,
  * `POST /api/demo/control`) work by mutating `lib/txline/demoControl.ts`'s
- * shared in-memory state — `waitContentMs` below polls it every
- * `POLL_INTERVAL_MS` while waiting for the next event, exactly the
- * "shared control object the ReplaySource polls between events" shape
- * this was speced against, not a push/subscribe mechanism. Both
- * instances (odds + scores) poll the same shared state independently and
- * converge on the same jump target without needing to coordinate with
- * each other directly.
+ * in-memory state, keyed by `this.options.scenario` — `waitContentMs`
+ * below polls it every `POLL_INTERVAL_MS` while waiting for the next
+ * event, exactly the "shared control object the ReplaySource polls
+ * between events" shape this was speced against, not a push/subscribe
+ * mechanism. Both instances for a given scenario (odds + scores) poll
+ * that scenario's own state independently and converge on the same jump
+ * target without needing to coordinate with each other directly — and
+ * never affect any *other* scenario's independently-running replay.
  */
 import { readFileSync } from "node:fs";
 import type { RawSseEvent, Source, StreamKind } from "@/lib/txline/stream";
@@ -108,7 +109,7 @@ export class ReplaySource implements Source {
     do {
       let index = 0;
       let previousT = 0;
-      let ackedJumpGeneration = getDemoControlState().jumpGeneration;
+      let ackedJumpGeneration = getDemoControlState(this.options.scenario).jumpGeneration;
 
       while (index < lines.length) {
         if (signal?.aborted) return;
@@ -118,7 +119,7 @@ export class ReplaySource implements Source {
         if (signal?.aborted) return;
 
         if (jumped) {
-          const control = getDemoControlState();
+          const control = getDemoControlState(this.options.scenario);
           ackedJumpGeneration = control.jumpGeneration;
           let nextIndex = lines.findIndex((l) => l.t >= control.jumpTargetT);
           if (nextIndex === -1) nextIndex = lines.length;
@@ -156,12 +157,12 @@ export class ReplaySource implements Source {
 
     while (remaining > 0) {
       if (signal?.aborted) return false;
-      if (getDemoControlState().jumpGeneration !== ackedJumpGeneration) return true;
+      if (getDemoControlState(this.options.scenario).jumpGeneration !== ackedJumpGeneration) return true;
 
       await sleep(POLL_INTERVAL_MS, signal);
       if (signal?.aborted) return false;
 
-      const control = getDemoControlState();
+      const control = getDemoControlState(this.options.scenario);
       if (control.jumpGeneration !== ackedJumpGeneration) return true;
       if (!control.paused) remaining -= POLL_INTERVAL_MS * control.speed;
     }

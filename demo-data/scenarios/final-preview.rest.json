@@ -1,0 +1,54 @@
+{
+  "meta": {
+    "scenario": "final-preview",
+    "matchup": "Spain v Argentina — World Cup Final preview",
+    "label": "Jul 19 Final preview",
+    "realFixtureId": 18257739,
+    "demoFixtureId": 27257739,
+    "durationMs": 21000000
+  },
+  "fixture": {
+    "Ts": 1784800800000,
+    "StartTime": 1784487900000,
+    "Competition": "World Cup",
+    "CompetitionId": 72,
+    "FixtureGroupId": 10115676,
+    "Participant1Id": 3021,
+    "Participant1": "Spain",
+    "Participant2Id": 1489,
+    "Participant2": "Argentina",
+    "FixtureId": 27257739,
+    "Participant1IsHome": true,
+    "GameState": 1
+  },
+  "scores": [],
+  "odds": [
+    {
+      "FixtureId": 27257739,
+      "MessageId": "preview-odds-7",
+      "Ts": 1784487300000,
+      "Bookmaker": "TxODDS Demo Book",
+      "BookmakerId": 1,
+      "SuperOddsType": "1X2",
+      "GameState": null,
+      "InRunning": true,
+      "MarketParameters": "",
+      "MarketPeriod": "FT",
+      "PriceNames": [
+        "Home",
+        "Draw",
+        "Away"
+      ],
+      "Prices": [
+        1830,
+        3650,
+        3620
+      ],
+      "Pct": [
+        "49.828",
+        "24.982",
+        "25.189"
+      ]
+    }
+  ]
+}
