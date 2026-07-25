@@ -206,3 +206,56 @@ export async function claimRefund(program: anchor.Program, params: ClaimRefundPa
     })
     .transaction();
 }
+
+export interface ClaimWinningsParams {
+  fixtureId: bigint;
+  /** Same reasoning as `ClaimRefundParams.outcome` — `claim_winnings`
+   * itself takes no `outcome` argument (see `claim_winnings.rs`'s `Bet`
+   * seeds, which re-derive from the account's own stored `outcome`), but
+   * this client still needs it to derive the same `bet` PDA `deriveBet`
+   * expects. */
+  outcome: Outcome;
+}
+
+/**
+ * Builds a real `claim_winnings` `Transaction` — the parimutuel payout
+ * for a winning `Bet` on a `Resolved` market (`stake * total_pool /
+ * winning_pool`, floored — computed entirely on-chain, see
+ * `claim_winnings.rs`). Not currently called from any UI component
+ * (`components/bet/PositionRow.tsx`'s CLAIM button is still a
+ * placeholder toast, "Claiming lands in Phase 6") — this exists for
+ * `scripts/seed-demo.ts`/`scripts/reset-demo.ts`, which call it directly
+ * against the presenter wallet to enforce "exactly one outstanding
+ * claimable win" rather than leaving every incidentally-resolved winning
+ * bet sitting unclaimed. Same account-derivation and no-ATA-create
+ * reasoning as `claimRefund` above.
+ */
+export async function claimWinnings(program: anchor.Program, params: ClaimWinningsParams): Promise<Transaction> {
+  const user = program.provider.publicKey;
+  if (!user) throw new Error("Wallet not connected");
+
+  const [market] = deriveMarket(params.fixtureId);
+
+  const marketAccountClient = (program.account as Record<string, { fetch(addr: PublicKey): Promise<{ usdcMint: PublicKey }> }>)[
+    MARKET_ACCOUNT_IDL_NAME
+  ];
+  const marketAccount = await marketAccountClient.fetch(market);
+  const usdcMint = marketAccount.usdcMint;
+
+  const [bet] = deriveBet(market, user, params.outcome);
+  const userUsdc = getAssociatedTokenAddressSync(usdcMint, user);
+  const vault = deriveVault(usdcMint, market);
+
+  return program.methods
+    .claimWinnings()
+    .accounts({
+      user,
+      market,
+      bet,
+      vault,
+      userUsdc,
+      usdcMint,
+      tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .transaction();
+}

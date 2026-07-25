@@ -32,6 +32,64 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
   betting tests. The program pins whatever mint each market is initialized
   with, so this is a drop-in swap and nothing else changes.
 
+## Reproducing the demo environment
+
+Judges (or anyone) can populate a live, walkable demo of the deployed
+program with one command — real markets, real varied bets, real settled
+receipts, no manual setup:
+
+```bash
+cp .env.local.example .env.local   # fill in KEEPER_SECRET_KEY, TXLINE_*, etc.
+pnpm install
+pnpm seed:demo
+```
+
+This is `scripts/seed-demo.ts`, idempotent (safe to re-run — it skips
+whatever already exists rather than duplicating it):
+
+1. **Creates five on-chain markets** in the "demo range" (`+9,000,000`
+   fixture ids — see `lib/txline/demoScenarios.ts`), one per demo
+   scenario (`pens`, `qf-thriller`, `underdog`, `late-drama`,
+   `final-preview` — see `demo-data/scenarios/`), so the on-chain betting
+   flow and the `DEMO_MODE=1` replay pill narrate the exact same five
+   matches.
+2. **Places ~20 varied bets** on them from three deterministic, publicly
+   re-derivable devnet wallets (`demo-alice`/`demo-bob`/`demo-carol` — see
+   `scripts/seed-bets.ts`'s own doc comment for the exact seed), so
+   `/leaderboard` has real, distinguishable activity instead of looking
+   empty.
+3. **Resolves two real fixtures** (not demo-range ones — `resolve_market`'s
+   CPI only ever succeeds against TxLINE's genuine on-chain data) through
+   the exact same backfill path `pnpm keeper:resolve --fixture <id>` uses,
+   so `/portfolio` and `/receipts/<fixtureId>` have real, Merkle-proof-
+   verified settled content, not just open markets.
+4. **Leaves exactly one unclaimed winning bet** on the presenter/dev
+   wallet, discovered and enforced by directly scanning that wallet's
+   real on-chain `Bet` accounts (`scripts/demoRig.ts`) — not a hardcoded
+   assumption about what should be there.
+
+Between recorded takes, `pnpm reset:demo` re-arms that one claimable win
+if a take actually claimed it — fabricating a fresh one honestly (a real,
+historical, already-decided World Cup fixture, bet on the side that
+already won, resolved through the same real backfill path) rather than
+faking an outcome.
+
+**Two known, deliberate gaps** — both confirmed live, not theoretical,
+documented in `scripts/seed-demo.ts`'s own doc comment:
+
+- `pens`'s real fixture (Germany v Paraguay) is **permanently
+  unresolvable** through `resolve_market`'s real CPI — it was decided on
+  penalties, and the CPI only ever proves an FT+ET goal difference, with
+  no on-chain representation of a shootout at all (see
+  `resolve_market.rs`'s module doc comment). Submitting the real winner
+  would fail the proof's own predicate; `resolveFixtureInner` correctly
+  refuses rather than resolving dishonestly. Its market stays `Open`.
+- `late-drama`'s real fixture (Argentina v Cape Verde) hits a
+  reproducible `TimestampMismatch` from TxLINE's own `validate_stat` CPI
+  — looks like a TxLINE-side devnet data issue outside this program's
+  control (an otherwise-identical resolution against a different fixture
+  succeeds cleanly). Its market also stays `Open`.
+
 ## Getting Started
 
 First, run the development server:

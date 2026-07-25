@@ -40,6 +40,7 @@ NOTES.md
 *.sample.json
 demo-data/raw
 .txline-subscription.json
+.demo-state.json
 /proofs
 /keeper/logs.ndjson
 

@@ -68,10 +68,10 @@ import { explorerTxUrl } from "@/lib/explorer";
 import { deriveMarket } from "@/lib/solana/pda";
 import { MARKET_ACCOUNT_IDL_NAME } from "@/lib/solana/program";
 import { getScores } from "@/lib/txline/client";
-import { deriveOutcome, fixtureStatusFromActionAndStatusId, toFixture, toScoreEvent } from "@/lib/txline/normalize";
+import { deriveOutcome, fixtureStatusFromActionAndStatusId, isForwardStatusTransition, toFixture, toScoreEvent } from "@/lib/txline/normalize";
 import { fetchProof } from "@/lib/txline/proofs";
 import type { TxScore } from "@/lib/txline/types";
-import type { Outcome } from "@/lib/types";
+import type { FixtureStatus, Outcome } from "@/lib/types";
 import { buildKeeperContext } from "@/keeper/context";
 import { dailyScoresRootsPda, fetchMarketStatus, formatTxError, type KeeperContext } from "@/keeper/jobs";
 import { buildLogger } from "@/keeper/logger";
@@ -126,6 +126,31 @@ function latestBySeq(events: TxScore[]): TxScore | undefined {
   return events.length === 0 ? undefined : events.reduce((a, b) => (b.Seq > a.Seq ? b : a));
 }
 
+/**
+ * Folds through every event in `Seq` order applying the same
+ * forward-only guard `lib/txline/statusTracker.ts#transitionTo` and
+ * `components/match/MatchDetailBoard.tsx`'s live-status effect already
+ * use (`isForwardStatusTransition`, see its own doc comment) — a real
+ * mid-or-post-match event with no `StatusId` (`suspend`, `comment`,
+ * `disconnected`, ...) can't bounce the derived status backward. Reading
+ * only the single highest-`Seq` event (as an earlier version of this
+ * function did) is a real bug, not a theoretical one: confirmed live
+ * against fixture 18175983, whose real feed emits a `disconnected` event
+ * (no `StatusId`) *after* its `game_finalised` event — the naive
+ * "latest event's own status" check reads that as `SCHEDULED` forever,
+ * so `pollUntilStableFinished` never recognizes a fixture that has
+ * genuinely, stably finished.
+ */
+export function deriveStableStatus(events: TxScore[]): FixtureStatus {
+  const sorted = [...events].sort((a, b) => a.Seq - b.Seq);
+  let status: FixtureStatus = "SCHEDULED";
+  for (const event of sorted) {
+    const next = fixtureStatusFromActionAndStatusId(event.Action, event.StatusId);
+    if (isForwardStatusTransition(status, next)) status = next;
+  }
+  return status;
+}
+
 /** (a) — see module doc comment. Returns the stable `game_finalised`
  * event once two consecutive polls both report `FINISHED`. A single failed
  * `getScores` call (network hiccup — `lib/txline/client.ts`'s own 3x
@@ -154,8 +179,7 @@ async function pollUntilStableFinished(fixtureId: number, logger: pino.Logger): 
     }
 
     const finalised = events.filter((e) => e.Action === "game_finalised");
-    const latest = latestBySeq(events);
-    const status = latest ? fixtureStatusFromActionAndStatusId(latest.Action, latest.StatusId) : "SCHEDULED";
+    const status = deriveStableStatus(events);
 
     if (status === "FINISHED" && finalised.length > 0) {
       consecutiveFinished += 1;
