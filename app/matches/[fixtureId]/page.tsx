@@ -5,7 +5,7 @@ import { Footer } from "@/components/layout/Footer";
 import { MatchDetailBoard } from "@/components/match/MatchDetailBoard";
 import { STAGE_LABELS } from "@/lib/market";
 import { getBaseUrl } from "@/lib/baseUrl";
-import type { TrackedFixture } from "@/lib/txline/statusTracker";
+import { getStatusTracker, type TrackedFixture } from "@/lib/txline/statusTracker";
 
 interface PageParams {
   fixtureId: string;
@@ -21,13 +21,12 @@ async function getFixture(fixtureIdParam: string): Promise<TrackedFixture | null
   const fixtureId = Number(fixtureIdParam);
   if (!Number.isInteger(fixtureId) || fixtureId <= 0) return null;
 
-  // Same fetch (same URL + revalidate window) app/matches/(list)/page.tsx
-  // makes — Next's fetch cache/request memoization means this doesn't
-  // re-fetch the whole tournament list a second time within the window,
-  // it just filters the already-cached result down to one fixture.
-  const res = await fetch(`${getBaseUrl()}/api/fixtures`, { next: { revalidate: 30 } });
-  const fixtures: TrackedFixture[] = await res.json();
-  return fixtures.find((f) => f.fixtureId === fixtureId) ?? null;
+  // Reads the shared `StatusTracker` singleton directly rather than
+  // self-fetching `/api/fixtures` over HTTP — see
+  // app/matches/(list)/page.tsx's identical fix for why (a real production
+  // crash, not a theoretical one).
+  const tracker = await getStatusTracker();
+  return tracker.list().find((f) => f.fixtureId === fixtureId) ?? null;
 }
 
 /**

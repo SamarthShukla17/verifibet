@@ -15,7 +15,7 @@ import { getBaseUrl } from "@/lib/baseUrl";
 import { STAGE_LABELS } from "@/lib/market";
 import { usdcToInputValue } from "@/lib/format";
 import type { Receipt } from "@/lib/types";
-import type { TrackedFixture } from "@/lib/txline/statusTracker";
+import { getStatusTracker } from "@/lib/txline/statusTracker";
 
 interface PageParams {
   fixtureId: string;
@@ -33,12 +33,14 @@ async function loadReceipt(fixtureId: number): Promise<Receipt> {
 
 /** Best-effort only — a receipt is fully assembled from on-chain +
  * TxLINE-proof data regardless of whether this succeeds; `stage` is
- * purely a hero-copy nicety (`Market` itself has no `stage` field). */
+ * purely a hero-copy nicety (`Market` itself has no `stage` field). Reads
+ * the shared `StatusTracker` singleton directly rather than self-fetching
+ * `/api/fixtures` over HTTP — see app/matches/(list)/page.tsx's identical
+ * fix for why. */
 async function loadStage(fixtureId: number): Promise<string | null> {
   try {
-    const res = await fetch(`${getBaseUrl()}/api/fixtures`, { next: { revalidate: 60 } });
-    const fixtures: TrackedFixture[] = await res.json();
-    const fixture = fixtures.find((f) => f.fixtureId === fixtureId);
+    const tracker = await getStatusTracker();
+    const fixture = tracker.list().find((f) => f.fixtureId === fixtureId);
     return fixture ? STAGE_LABELS[fixture.stage] : null;
   } catch {
     return null;
