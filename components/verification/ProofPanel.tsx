@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { Check, CheckCircle2, Copy, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -97,24 +98,34 @@ const NODE_STYLES: Record<NodeVisualState, string> = {
   failure: "border-destructive bg-destructive/10 text-destructive",
 };
 
+/**
+ * One node in the proof chain. Bumps `state` (`neutral` -> `active` ->
+ * `success`/`failure`, driven by `litCount` climbing bottom-up — leaf
+ * first, root last) each get a fresh "cascade-light" pop via `key={state}`:
+ * a state change is a brand-new `motion.div` mount, replaying its own
+ * `initial` -> `animate` spring cleanly (the same `key`-triggered-remount
+ * trick `OddsDisplay.tsx`'s flash and `MatchHeader.tsx`'s `ScoreDigit`
+ * both use) — no manual "did this just light up" bookkeeping needed. The
+ * very first paint (idle `neutral`) skips the pop via `initial={false}`;
+ * only real transitions animate. `reduceMotion` drops the spring
+ * entirely — the color change (`transition-colors`, already CSS, not
+ * `motion`) still communicates the same state without any transform.
+ */
 function NodeBox({
   kicker,
   state,
   side,
   children,
+  reduceMotion,
 }: {
   kicker: string;
   state: NodeVisualState;
   side?: "L" | "R";
   children: React.ReactNode;
+  reduceMotion: boolean;
 }) {
-  return (
-    <div
-      className={cn(
-        "relative flex w-[164px] shrink-0 flex-col gap-1 rounded-lg border-2 p-2.5 transition-colors duration-300",
-        NODE_STYLES[state],
-      )}
-    >
+  const content = (
+    <>
       {side && (
         <span
           title={side === "R" ? "Right sibling" : "Left sibling"}
@@ -125,7 +136,28 @@ function NodeBox({
       )}
       <span className="text-[10px] font-semibold uppercase tracking-wide opacity-70">{kicker}</span>
       {children}
-    </div>
+    </>
+  );
+
+  const baseClassName = cn(
+    "relative flex w-[164px] shrink-0 flex-col gap-1 rounded-lg border-2 p-2.5 transition-colors duration-300",
+    NODE_STYLES[state],
+  );
+
+  if (reduceMotion) {
+    return <div className={baseClassName}>{content}</div>;
+  }
+
+  return (
+    <motion.div
+      key={state}
+      initial={state === "neutral" ? false : { scale: 0.85, opacity: 0.7 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ type: "spring", stiffness: 420, damping: 18 }}
+      className={baseClassName}
+    >
+      {content}
+    </motion.div>
   );
 }
 
@@ -223,6 +255,7 @@ export function ProofPanel({ receipt }: ProofPanelProps) {
   const [verifyState, setVerifyState] = useState<VerifyState>("idle");
   const [litCount, setLitCount] = useState(0);
   const [showPlainEnglish, setShowPlainEnglish] = useState(false);
+  const reduceMotion = useReducedMotion() ?? false;
 
   const totalSegments = receipt.proofPath.length + 1; // leaf->...->root transitions
 
@@ -303,7 +336,7 @@ export function ProofPanel({ receipt }: ProofPanelProps) {
           {receipt.attested ? "The commitment, made human" : "The proof, made human"}
         </p>
         <div className="flex items-center gap-1 overflow-x-auto pb-2">
-          <NodeBox kicker="Leaf" state={nodeState(0, false)}>
+          <NodeBox kicker="Leaf" state={nodeState(0, false)} reduceMotion={reduceMotion}>
             <span className="text-[11px] leading-snug">
               Match {receipt.fixtureId} · FT: {receipt.teams.home} {receipt.finalScore.home}–
               {receipt.finalScore.away} {receipt.teams.away}
@@ -313,7 +346,12 @@ export function ProofPanel({ receipt }: ProofPanelProps) {
           {receipt.proofPath.map((step, i) => (
             <div key={i} className="flex items-center gap-1">
               <Connector active={i < litCount} />
-              <NodeBox kicker={`Sibling ${i + 1}`} state={nodeState(i + 1, false)} side={step.isRightSibling ? "R" : "L"}>
+              <NodeBox
+                kicker={`Sibling ${i + 1}`}
+                state={nodeState(i + 1, false)}
+                side={step.isRightSibling ? "R" : "L"}
+                reduceMotion={reduceMotion}
+              >
                 <HashTag value={step.hash} />
               </NodeBox>
             </div>
@@ -321,7 +359,11 @@ export function ProofPanel({ receipt }: ProofPanelProps) {
 
           <div className="flex items-center gap-1">
             <Connector active={receipt.proofPath.length < litCount} />
-            <NodeBox kicker={receipt.attested ? "Local commitment (on-chain)" : "Root (on-chain)"} state={nodeState(totalSegments, true)}>
+            <NodeBox
+              kicker={receipt.attested ? "Local commitment (on-chain)" : "Root (on-chain)"}
+              state={nodeState(totalSegments, true)}
+              reduceMotion={reduceMotion}
+            >
               <HashTag value={receipt.proofRoot} />
             </NodeBox>
           </div>

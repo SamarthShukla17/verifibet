@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import { MarketStatusBadge } from "@/components/market/MarketStatusBadge";
 import { OddsDisplay } from "@/components/market/OddsDisplay";
 import { MatchCard } from "@/components/market/MatchCard";
+import { MatchHeader } from "@/components/match/MatchHeader";
 import { BetSlip, type BetSlipSelection } from "@/components/bet/BetSlip";
-import type { Fixture, OddsSnapshot, Outcome } from "@/lib/types";
+import { ProofPanel } from "@/components/verification/ProofPanel";
+import type { Fixture, OddsSnapshot, Outcome, Receipt } from "@/lib/types";
 
 /**
  * Dev-only gallery — every state of the four core components against
@@ -101,8 +103,48 @@ const ODDS_LIVE: OddsSnapshot = {
   ts: NOW_TS * 1000,
 };
 
+// A real, internally-consistent (not fabricated-looking, not TxLINE-
+// real either) leaf/path/root triple — computed offline with the exact
+// sha256 + isRightSibling combination rule `lib/txline/verify.ts`
+// documents, so `ProofPanel`'s "Verify in your browser" button genuinely
+// succeeds against this mock data instead of always hitting the failure
+// branch.
+const MOCK_RECEIPT: Receipt = {
+  fixtureId: 18257865,
+  teams: { home: "France", away: "England" },
+  finalScore: { home: 2, away: 1 },
+  outcome: 0,
+  kickoffTs: NOW_TS,
+  pools: ["4200000000", "3100000000", "5150000000"],
+  totalPool: "12450000000",
+  resolveTxSig: "5x8yJmQ1FzKp2VnGdRoW3aE9tHcB6uY7NsX4LqZmVpT8kR2wJnFbQ9",
+  explorerUrl: "https://explorer.solana.com/tx/mock?cluster=devnet",
+  proofRoot: "3138e800a1be990d1b167fccc97e5c9c95e17d6e1d65f63abc330ee1573845c4",
+  proofLeaf: "4d0d08ab1d89cb414dca2f09ad05a1773372ad8ace622cdbd96615e0d6762cd5",
+  proofPath: [
+    { hash: "67041d4d754ff9c5d8f1730eeb8cfcc53a858d0973d6a738491739d35ae050db", isRightSibling: false },
+    { hash: "4108d63d83ebb6719f14a5006004139045d51f117e21bd58636c8d992134f3f5", isRightSibling: true },
+  ],
+  verifiedLocally: true,
+  resolvedAt: NOW_TS,
+};
+
 export default function DevComponentsPage() {
   const [oddsSelected, setOddsSelected] = useState(false);
+
+  // Goal demo: nudges a mock live score every 3s so MatchHeader's
+  // shimmer + score-digit-flip are genuinely visible here, not just
+  // theoretically wired up — same "actually exercise it, don't just
+  // claim it's wired" standard as the odds ticker below.
+  const [goalScore, setGoalScore] = useState({ home: 1, away: 0 });
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setGoalScore((prev) =>
+        Math.random() > 0.5 ? { ...prev, home: prev.home + 1 } : { ...prev, away: prev.away + 1 },
+      );
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Live-flash demo: nudges a mock odds value every 2.5s so the 600ms
   // flash animation is genuinely visible on this page, not just
@@ -220,6 +262,33 @@ export default function DevComponentsPage() {
                 </div>
               </div>
             </div>
+          </section>
+
+          {/* MatchHeader — goal shimmer + score digit flip */}
+          <section>
+            <SectionHeading
+              title="MatchHeader — live goal"
+              description="Score bumps every ~3s: a one-shot light sweep across the card plus a 3D digit flip on whichever side just scored."
+            />
+            <MatchHeader
+              home="France"
+              away="England"
+              stage="GROUP"
+              group="A"
+              kickoffTs={NOW_TS - 2_700}
+              marketStatus="LOCKED"
+              isLive
+              liveScore={{ home: goalScore.home, away: goalScore.away, minute: 67 }}
+            />
+          </section>
+
+          {/* ProofPanel — verify cascade */}
+          <section>
+            <SectionHeading
+              title="ProofPanel — verify cascade"
+              description="Click Verify in your browser: nodes light up leaf-to-root with a springy pop, then the root glows gold on a real (mock-data) match."
+            />
+            <ProofPanel receipt={MOCK_RECEIPT} />
           </section>
 
           {/* MatchCard */}

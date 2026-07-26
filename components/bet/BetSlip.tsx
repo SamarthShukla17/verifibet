@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { Button } from "@/components/ui/button";
@@ -75,6 +76,46 @@ export interface BetSlipProps {
 type Phase = "edit" | "confirm" | "submitting" | "success";
 
 /**
+ * The success state's own badge — an empty circle that springs in, then
+ * a checkmark path draws itself in right after ("morphs" from a plain
+ * circle into a check, not two separate static states swapped). Static
+ * (no `motion`, already-drawn check) under `prefers-reduced-motion`.
+ */
+function CheckMorph({ reduceMotion }: { reduceMotion: boolean }) {
+  if (reduceMotion) {
+    return (
+      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden>
+          <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
+    );
+  }
+
+  return (
+    <motion.div
+      className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground"
+      initial={{ scale: 0 }}
+      animate={{ scale: 1 }}
+      transition={{ type: "spring", stiffness: 400, damping: 15 }}
+    >
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden>
+        <motion.path
+          d="M5 13l4 4L19 7"
+          stroke="currentColor"
+          strokeWidth={3}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          initial={{ pathLength: 0 }}
+          animate={{ pathLength: 1 }}
+          transition={{ duration: 0.3, delay: 0.2, ease: "easeOut" }}
+        />
+      </svg>
+    </motion.div>
+  );
+}
+
+/**
  * The full bet-placement flow for one selected outcome: amount entry with
  * quick chips + live inline validation, an in-slip hold-to-confirm step,
  * and a success state — no page navigation or modal at any point, the
@@ -99,6 +140,7 @@ export function BetSlip({
 }: BetSlipProps) {
   const { connected } = useWallet();
   const { setVisible: setWalletModalVisible } = useWalletModal();
+  const reduceMotion = useReducedMotion() ?? false;
 
   const [phase, setPhase] = useState<Phase>("edit");
   const [touched, setTouched] = useState(false);
@@ -202,6 +244,7 @@ export function BetSlip({
       ) : phase === "success" ? (
         <div className="relative mt-3 flex flex-col items-center gap-3 overflow-hidden py-4 text-center">
           <ConfettiBurst />
+          <CheckMorph reduceMotion={reduceMotion} />
           <p className="font-display text-lg font-semibold text-foreground">Bet placed!</p>
           <p className="text-xs text-muted-foreground">
             {formatUsdc(amountBaseUnits ?? 0n)} USDC on {outcomeName(selection)}

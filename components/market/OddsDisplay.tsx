@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { motion, useAnimationControls, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 export interface OddsDisplayProps {
@@ -46,15 +47,31 @@ export function OddsDisplay({
 }: OddsDisplayProps) {
   const prevOdds = useRef(odds);
   const [flash, setFlash] = useState<"up" | "down" | null>(null);
+  const reduceMotion = useReducedMotion();
+  const scaleControls = useAnimationControls();
 
   useEffect(() => {
     if (odds === prevOdds.current) return;
     setFlash(odds > prevOdds.current ? "up" : "down");
     prevOdds.current = odds;
 
+    // Springy 1 -> 1.06 -> 1 tick, driven explicitly via controls rather
+    // than a `key`-remount (the flash overlay's own trick, above): this
+    // effect already only fires on a genuine value *change* (the
+    // `odds === prevOdds.current` guard skips the initial mount), so
+    // there's no first-paint-animation ambiguity to work around, and
+    // `prefers-reduced-motion` skips the call entirely rather than
+    // playing a motion the user asked not to see.
+    if (!reduceMotion) {
+      void scaleControls.start({
+        scale: [1, 1.06, 1],
+        transition: { duration: 0.4, ease: ["easeOut", "backIn"] },
+      });
+    }
+
     const timer = setTimeout(() => setFlash(null), 600);
     return () => clearTimeout(timer);
-  }, [odds]);
+  }, [odds, reduceMotion, scaleControls]);
 
   return (
     <button
@@ -98,9 +115,12 @@ export function OddsDisplay({
             it's a safe sentinel for "no data" (a resolved/voided market,
             a fixture with no current odds snapshot) without needing a
             nullable prop type. */}
-        <span className="tabular text-2xl font-bold leading-none sm:text-[1.75rem]">
+        <motion.span
+          animate={scaleControls}
+          className="tabular inline-block text-2xl font-bold leading-none sm:text-[1.75rem]"
+        >
           {odds > 0 ? odds.toFixed(3) : "—"}
-        </span>
+        </motion.span>
         {odds > 0 && delta !== undefined && delta !== 0 && (
           <span
             className={cn(
