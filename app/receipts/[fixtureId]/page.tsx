@@ -52,16 +52,21 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { fixtureId: fixtureIdParam } = await params;
   const fixtureId = parseFixtureId(fixtureIdParam);
-  if (fixtureId === null) return { title: "Receipt not found — VERIFIBET" };
+  if (fixtureId === null) return { title: "Receipt not found" };
 
   let receipt: Receipt;
   try {
     receipt = await loadReceipt(fixtureId);
   } catch {
-    return { title: "Receipt not yet available — VERIFIBET" };
+    return { title: "Receipt not yet available" };
   }
 
-  const title = `${receipt.teams.home} ${receipt.finalScore.home}–${receipt.finalScore.away} ${receipt.teams.away} — Verified Receipt — VERIFIBET`;
+  // Bare — see app/matches/[fixtureId]/page.tsx's own comment on why:
+  // the root layout's `title.template` adds "· VERIFIBET" to the actual
+  // `<title>` tag; `socialTitle` below does the same by hand for
+  // `openGraph`/`twitter`, which don't get the template automatically.
+  const title = `${receipt.teams.home} ${receipt.finalScore.home}–${receipt.finalScore.away} ${receipt.teams.away} — Verified Receipt`;
+  const socialTitle = `${title} · VERIFIBET`;
   const description = receipt.attested
     ? "Demo scenario — resolved by authority attestation, not independently verified against TxODDS TxLINE."
     : "Settled on-chain and independently verifiable against TxODDS TxLINE — every proof checkable by anyone, not just us.";
@@ -87,8 +92,8 @@ export async function generateMetadata({
   return {
     title,
     description,
-    openGraph: { title, description, images },
-    twitter: { card: "summary_large_image", title, description, images: [ogImageUrl] },
+    openGraph: { title: socialTitle, description, images },
+    twitter: { card: "summary_large_image", title: socialTitle, description, images: [ogImageUrl] },
   };
 }
 

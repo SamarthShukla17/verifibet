@@ -63,6 +63,29 @@ function buildOgImageUrl(fixture: TrackedFixture, searchParams: PageSearchParams
   return `${getBaseUrl()}/api/og/bet?${params.toString()}`;
 }
 
+/**
+ * The default (non-share) card — always available, since it only ever
+ * needs data `getFixture` already fetched, unlike `buildOgImageUrl`
+ * above (which needs `ShareButton`-supplied query params that only
+ * exist on a share link). Passes the fixture's live score through when
+ * `status` is `LIVE`/`FINISHED` so a link shared *during* a match shows
+ * the real score, not just "kickoff at ...".
+ */
+function buildDefaultMatchOgUrl(fixture: TrackedFixture): string {
+  const params = new URLSearchParams({
+    home: fixture.home,
+    away: fixture.away,
+    stage: fixture.stage,
+    status: fixture.status,
+    kickoffTs: String(fixture.kickoffTs),
+  });
+  if (fixture.score) {
+    params.set("homeScore", String(fixture.score.home));
+    params.set("awayScore", String(fixture.score.away));
+  }
+  return `${getBaseUrl()}/api/og/match?${params.toString()}`;
+}
+
 export async function generateMetadata({
   params,
   searchParams,
@@ -74,20 +97,33 @@ export async function generateMetadata({
   const fixture = await getFixture(fixtureId);
 
   if (!fixture) {
-    return { title: "Match not found — VERIFIBET" };
+    return { title: "Match not found" };
   }
 
-  const title = `${fixture.home} vs ${fixture.away} — VERIFIBET`;
+  // Bare — the root layout's `title.template` ("%s · VERIFIBET") adds
+  // the brand suffix for the actual `<title>` tag. `openGraph`/`twitter`
+  // titles don't get that template applied automatically (Next only
+  // resolves it for the top-level `metadata.title`), so those use
+  // `socialTitle` below instead, built the same way by hand.
+  const title = `${fixture.home} vs ${fixture.away}`;
+  const socialTitle = `${title} · VERIFIBET`;
   const description = `${STAGE_LABELS[fixture.stage]} — parimutuel odds and on-chain settlement for ${fixture.home} vs ${fixture.away}, verified via TxODDS TxLINE.`;
 
-  const ogImageUrl = buildOgImageUrl(fixture, await searchParams);
-  const images = ogImageUrl ? [{ url: ogImageUrl, width: 1200, height: 630 }] : undefined;
+  // A share-triggered visit (`?ref=share&pick=...`) gets that specific
+  // bet's own card; every other visit — including the very first time
+  // anyone pastes a bare match link anywhere — still gets a real,
+  // fixture-specific preview instead of no image at all. See
+  // `app/api/og/match/route.tsx`'s own doc comment on why this is a
+  // separate route from `buildOgImageUrl`'s `/api/og/bet`, not a
+  // no-params fallback mode on that same one.
+  const ogImageUrl = buildOgImageUrl(fixture, await searchParams) ?? buildDefaultMatchOgUrl(fixture);
+  const images = [{ url: ogImageUrl, width: 1200, height: 630 }];
 
   return {
     title,
     description,
-    openGraph: { title, description, images },
-    twitter: { card: "summary_large_image", title, description, images: ogImageUrl ? [ogImageUrl] : undefined },
+    openGraph: { title: socialTitle, description, images },
+    twitter: { card: "summary_large_image", title: socialTitle, description, images: [ogImageUrl] },
   };
 }
 

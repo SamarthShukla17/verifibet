@@ -28,6 +28,8 @@ import { NextRequest } from "next/server";
 import { buildReceipt, ReceiptNotAvailableError } from "@/lib/receipts";
 import { getReadOnlyProgram } from "@/lib/solana/program";
 import { flagUrl } from "@/lib/flags";
+import { OG_COLORS } from "@/lib/ogColors";
+import { loadGoogleFont } from "@/lib/ogFonts";
 
 export const runtime = "nodejs";
 // `force-dynamic`, matching every other route.ts here that reads
@@ -44,37 +46,7 @@ export const dynamic = "force-dynamic";
 const WIDTH = 1200;
 const HEIGHT = 630;
 
-const COLORS = {
-  background: "hsl(222, 47%, 6%)",
-  border: "hsl(222, 30%, 16%)",
-  foreground: "hsl(220, 20%, 97%)",
-  mutedForeground: "hsl(220, 14%, 60%)",
-  primary: "hsl(160, 84%, 39%)",
-  primaryForeground: "hsl(222, 47%, 6%)",
-  gold: "hsl(43, 96%, 56%)",
-} as const;
-
-/**
- * Google Fonts' CSS2 endpoint serves TTF (not WOFF2) to a plain `fetch`
- * with no `Accept` header — Satori (what `ImageResponse` renders with)
- * can only parse TTF/OTF, not WOFF2, which is what a real browser would
- * get from the same URL. `text` scopes the returned subset to only the
- * glyphs this card actually uses, keeping the fetch small. Returns
- * `null` (never throws) on any failure — Satori falls back to its own
- * default font, so a Google Fonts hiccup degrades the card's typography,
- * it doesn't break the image.
- */
-async function loadGoogleFont(family: string, weight: number, text: string): Promise<ArrayBuffer | null> {
-  try {
-    const cssUrl = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}:wght@${weight}&text=${encodeURIComponent(text)}`;
-    const css = await (await fetch(cssUrl)).text();
-    const match = css.match(/src: url\(([^)]+)\) format\('(?:opentype|truetype)'\)/);
-    if (!match) return null;
-    return await (await fetch(match[1])).arrayBuffer();
-  } catch {
-    return null;
-  }
-}
+const COLORS = OG_COLORS;
 
 function formatMoney(raw: string | null, fallback = "0.00"): string {
   const n = raw === null ? NaN : Number(raw);

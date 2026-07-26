@@ -23,10 +23,42 @@ const spaceGrotesk = Space_Grotesk({
   display: "swap",
 });
 
+/**
+ * `NEXT_PUBLIC_APP_URL` — same env var (and same `http://localhost:3000`
+ * local-dev fallback) `keeper/resolver.ts`/`keeper/demoResolver.ts`
+ * already use for the exact same "what's this app's own canonical
+ * origin" question, not a new convention invented for metadata alone.
+ * `metadataBase` is what lets every route's relative-feeling
+ * `openGraph`/`twitter` image URLs resolve to absolute ones without each
+ * one having to know its own deployment origin — most routes here
+ * already build fully-absolute URLs by hand via `lib/baseUrl.ts`
+ * (request-header-derived, so it's correct behind any proxy/preview
+ * deployment too), so this is mainly a fallback for the file-convention
+ * images (`opengraph-image.tsx`, `icon.svg`, ...) Next resolves itself.
+ */
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
 export const metadata: Metadata = {
-  title: "VERIFIBET",
+  metadataBase: new URL(APP_URL),
+  title: {
+    default: "VERIFIBET",
+    template: "%s · VERIFIBET",
+  },
   description:
     "Solana parimutuel prediction markets for the 2026 World Cup, settled on-chain against TxLINE.",
+  openGraph: {
+    type: "website",
+    siteName: "VERIFIBET",
+    title: "VERIFIBET",
+    description:
+      "Solana parimutuel prediction markets for the 2026 World Cup, settled on-chain against TxLINE.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "VERIFIBET",
+    description:
+      "Solana parimutuel prediction markets for the 2026 World Cup, settled on-chain against TxLINE.",
+  },
 };
 
 export default function RootLayout({
