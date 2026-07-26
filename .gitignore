@@ -47,3 +47,4 @@ demo-data/raw
 # claude code local session settings
 .claude/settings.local.json
 .claude/*.tmp.*
+.env*

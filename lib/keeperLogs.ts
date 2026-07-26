@@ -1,12 +1,15 @@
 /**
- * Redis-backed mirror of `keeper/logs.ndjson`. In production the keeper
- * runs as a separate long-lived process (see `lib/txline/stream.ts`'s doc
- * comment on the Railway/Vercel split) — this Next server has no
- * filesystem access to that process's local ndjson file, so
- * `keeper/logger.ts` pushes every log line here (alongside stdout and the
- * local file) and `app/api/keeper/logs/route.ts` reads them back from
- * here whenever the local file isn't available. Transparently no-ops when
- * Upstash isn't configured — same convention as `lib/cache.ts`.
+ * Redis-backed mirror of `keeper/logs.ndjson`. There's no hosted keeper
+ * process (2026-07-26 deploy: resolution runs through the manual backfill
+ * CLI, `pnpm keeper:resolve --fixture <id>`, not a daemon — see
+ * `app/api/stream/route.ts`'s doc comment) — the keeper only ever runs on
+ * whoever's local machine invokes `pnpm keeper`/`pnpm keeper:resolve`, and
+ * the deployed Vercel Next server has no filesystem access to that
+ * machine's local ndjson file. So `keeper/logger.ts` pushes every log line
+ * here too (alongside stdout and the local file), and
+ * `app/api/keeper/logs/route.ts` reads them back from here whenever the
+ * local file isn't available. Transparently no-ops when Upstash isn't
+ * configured — same convention as `lib/cache.ts`.
  */
 import { Redis } from "@upstash/redis";
 

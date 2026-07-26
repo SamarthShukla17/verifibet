@@ -1,5 +1,13 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Live
+
+- App: https://verifibet.vercel.app (Vercel, devnet)
+- No hosted keeper / healthz endpoint — resolution runs through the
+  manual backfill CLI (`pnpm keeper:resolve --fixture <id>`), not a
+  daemon. See NOTES.md's "deploy" entry for why and what that means for
+  `/api/stream`'s SSE behavior in production.
+
 ## Deployed program (devnet)
 
 - Program ID: `CCrrc5cdohor1EGGFkrQ3yKUS3zU9tnU2uzxWRnd2PMw`

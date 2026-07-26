@@ -10,15 +10,22 @@
  * that plain `http` server — so this route does it server-side and
  * re-serves the result same-origin.
  *
- * `KEEPER_HEALTHZ_URL` (default `http://localhost:8787/healthz`) is what
- * makes this keep working once the keeper is a genuinely separate
- * deployed process (see `lib/txline/stream.ts`'s doc comment on the
- * Railway/Vercel split) rather than colocated with `pnpm dev`.
+ * `KEEPER_HEALTHZ_URL` (default `http://localhost:8787/healthz`) is
+ * deliberately *not* set on the deployed Vercel app (2026-07-26 deploy:
+ * no hosted keeper — resolution runs through the manual backfill CLI, not
+ * a daemon — see `lib/keeperLogs.ts`'s doc comment), so in production this
+ * proxy always resolves against `localhost:8787` inside whatever
+ * serverless instance is handling the request — never reachable, and not
+ * meant to be. That's the honest permanent state, not a placeholder for a
+ * not-yet-deployed process: the keeper only ever runs on an operator's own
+ * machine, where `KEEPER_HEALTHZ_URL` correctly defaults to that machine's
+ * own localhost.
  *
  * Both halves degrade independently and honestly — an unreachable keeper
  * process (`healthz: null`) is a real, expected state (the loop isn't
- * running right now) worth showing as "offline", not an error that takes
- * the whole dashboard down.
+ * running right now, or is running locally and not this dashboard's own
+ * process) worth showing as "offline", not an error that takes the whole
+ * dashboard down.
  */
 import { NextResponse } from "next/server";
 import { Connection } from "@solana/web3.js";

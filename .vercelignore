@@ -1,0 +1,26 @@
+# The Next.js *app* never imports anything from inside anchor/ at
+# runtime (it reads the generated IDL from the repo-root idls/ dir
+# instead — see CLAUDE.md's "Monorepo layout") — this is the separate
+# Anchor/Solana on-chain program workspace, ~4GB including its own
+# target/ and .anchor/ build artifacts. Excluding it isn't just a size
+# optimization: anchor/.anchor/test-ledger/admin.rpc is a leftover UNIX
+# socket from a local test-validator run, which crashes Vercel's own
+# upload/tar step with ENXIO if it's ever included, regardless of
+# anchor/.gitignore already covering it.
+#
+# `anchor/idls/` (104K of plain JSON) is the one exception: `next build`
+# type-checks the whole TS project, including `scripts/*.ts` — CLI tools
+# never bundled into the deployed app, but still statically imported by
+# path — and `scripts/txline-subscribe.ts` imports
+# `../anchor/idls/txline.json` directly. `anchor/*` (not bare `anchor`)
+# plus the `!anchor/idls` negation is what actually lets that survive:
+# gitignore-style negation can't resurrect a path whose parent directory
+# was itself excluded.
+anchor/*
+!anchor/idls
+
+# Not needed at deploy time, and .claude/ specifically holds session
+# state, not app source.
+.claude
+demo-assets
+keeper/logs.ndjson

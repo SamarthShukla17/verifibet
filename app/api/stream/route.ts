@@ -13,15 +13,28 @@
  * response is infinite and per-request, never something Next should try
  * to statically render or cache.
  *
- * **Production topology**: in production this route runs on Vercel and
- * talks to the long-lived consumer + keeper process on Railway (Session
- * 8.4) rather than owning the upstream TxLINE connections itself —
- * Vercel's serverless functions don't stay alive between requests, so
- * they can't be the long-lived consumer. In this dev setup, `pnpm dev`
- * keeps one Next process alive the whole time, so `getTxlineStream()`'s
- * `globalThis` singleton (see `lib/txline/stream.ts`) plays both roles at
- * once — this route *is* talking to a real long-lived consumer, it's just
- * colocated in the same process rather than a separate Railway one.
+ * **Production topology (2026-07-26 deploy)**: no separate Railway/Fly
+ * worker exists — resolution runs through the manual backfill CLI
+ * (`pnpm keeper:resolve --fixture <id>`, see `keeper/resolver.ts`), not a
+ * hosted daemon, so there's no always-on process for this route to talk
+ * to over the network even in production. It owns the upstream TxLINE
+ * connection itself via `getTxlineStream()`'s `globalThis` singleton (see
+ * `lib/txline/stream.ts`), exactly as in dev — Vercel just runs that
+ * inside a serverless function instead of a long-running `pnpm dev`
+ * process. The one real consequence: Vercel force-closes the function (and
+ * therefore the SSE connection) at its execution-time limit — confirmed
+ * live against the deployed route at exactly ~300s (no `maxDuration`
+ * override is set here), independent of any real network issue. This is
+ * survivable, not a bug to route around: `lib/hooks/useLiveFixture.ts`
+ * already treats *any* connection close as `onerror` and reconnects with
+ * its own backoff (starting at 1s) rather than relying on `EventSource`'s
+ * native retry, so a forced close reads as a ~1s reconnect blip, not a
+ * dead feed. A fresh invocation gets a fresh `getTxlineStream()` singleton
+ * (state doesn't survive a cold instance), which is fine — a subscriber
+ * losing at most one keepalive interval's worth of odds/score history
+ * on reconnect is an acceptable gap for a live feed, not a correctness
+ * issue. See NOTES.md's "deploy" entry for the actual 3-connection test
+ * that established this.
  */
 import type { NextRequest } from "next/server";
 import { getTxlineStream, type TxlineStreamEvents } from "@/lib/txline/stream";

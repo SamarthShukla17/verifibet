@@ -2,11 +2,12 @@
  * GET /api/keeper/logs?limit= — the keeper dashboard's (`app/keeper/page.tsx`)
  * recent-actions table + 24h success/failure sparkline data. Reads
  * `keeper/logs.ndjson`'s tail directly when this process can see it on
- * disk (local dev, or a deployment that colocates the keeper and the Next
- * server) — falls back to `lib/keeperLogs.ts`'s Upstash mirror otherwise,
- * the real production shape: the keeper runs as a separate long-lived
- * process (see `lib/txline/stream.ts`'s doc comment on the Railway/Vercel
- * split), so this Next server has no filesystem access to its ndjson file.
+ * disk (local dev, running against the same machine the keeper was last
+ * run on) — falls back to `lib/keeperLogs.ts`'s Upstash mirror otherwise,
+ * the real production shape: there's no hosted keeper (2026-07-26 deploy —
+ * see that file's doc comment), so the deployed Vercel Next server never
+ * has filesystem access to whichever operator machine last ran
+ * `pnpm keeper`/`pnpm keeper:resolve`.
  *
  * A raw ndjson line is a *job attempt* (table/sparkline-worthy) only if it
  * carries a `job` field and isn't marked `progress: true` — `keeper/resolver.ts`'s

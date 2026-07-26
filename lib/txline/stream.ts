@@ -7,18 +7,17 @@
  * never import runtime code from here into a client component (types are
  * fine, e.g. `useLiveFixture.ts`'s `import type { RawStatusEvent }`).
  *
- * **Production topology (not this dev setup)**: the singleton consumer
- * below (the two long-lived upstream TxLINE connections) and the keeper
- * are meant to run as one persistent Railway process (see Session 8.4) —
- * a real process that stays alive between requests. Vercel's serverless
- * functions don't hold state across invocations, so in production Vercel
- * only hosts the short-lived, per-browser `app/api/stream` SSE route,
- * which talks to the Railway consumer's pub/sub over the network instead
- * of holding its own upstream TxLINE connections. In this dev setup
- * (`pnpm dev`, one long-running Next process), the `globalThis` singleton
- * below is *also* the Railway-side consumer, colocated in the same
- * process as the route for simplicity — there is no separate consumer
- * process to talk to yet.
+ * **Production topology (2026-07-26 deploy)**: no Railway/Fly worker —
+ * resolution runs through the manual backfill CLI, not a hosted daemon
+ * (see `app/api/stream/route.ts`'s own doc comment for the full
+ * reasoning). The singleton consumer below runs inside Vercel's
+ * serverless function for `app/api/stream`, same as `pnpm dev`; it just
+ * doesn't survive past that function's ~300s execution limit or a cold
+ * instance swap, so a long-lived browser subscription sees this singleton
+ * get torn down and recreated periodically rather than living forever.
+ * That's fine for what this consumes (live odds/score deltas, not
+ * anything that needs durable state across the gap) — see
+ * `useLiveFixture.ts`'s reconnect handling.
  */
 import { EventEmitter } from "node:events";
 import { txlineFetch } from "@/lib/txline/http";
@@ -395,9 +394,10 @@ declare global {
  * The server singleton consumer. `globalThis`-guarded so Next's dev-mode
  * hot-reload (which re-evaluates this module on every edit) reuses the
  * same manager — and its two live upstream TxLINE connections — instead
- * of leaking a fresh pair on every save. In production this is the
- * in-process stand-in for the real Railway consumer (see the module-level
- * doc comment above).
+ * of leaking a fresh pair on every save. In production this is the only
+ * consumer there is (see the module-level doc comment above) — the
+ * `globalThis` guard there just protects against Vercel reusing a warm
+ * function instance across invocations rather than against dev hot-reload.
  */
 export function getTxlineStream(): TxlineStreamManager {
   if (!globalThis.__txlineStreamManager) {
