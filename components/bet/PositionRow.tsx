@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import { Check, Clock, X } from "lucide-react";
-import { toast } from "sonner";
 import { flagUrl } from "@/lib/flags";
 import { formatUsdc } from "@/lib/format";
 import { STAGE_LABELS } from "@/lib/market";
 import { Button } from "@/components/ui/button";
 import { ShareButton } from "@/components/bet/ShareButton";
 import { useClaimRefund } from "@/lib/hooks/useClaimRefund";
+import { useClaimWinnings } from "@/lib/hooks/useClaimWinnings";
 import { cn } from "@/lib/utils";
 import type { Position, PositionStatus } from "@/lib/hooks/useMyBets";
 
@@ -37,7 +37,16 @@ function formatKickoff(kickoffTs: number): string {
 function TeamFlag({ name }: { name: string }) {
   const src = flagUrl(name);
   if (!src) return null;
-  return <img src={src} alt="" aria-hidden className="h-3.5 w-3.5 shrink-0 rounded-full object-cover" />;
+  return (
+    <img
+      src={src}
+      alt=""
+      aria-hidden
+      loading="lazy"
+      decoding="async"
+      className="h-3.5 w-3.5 shrink-0 rounded-full object-cover"
+    />
+  );
 }
 
 /**
@@ -58,28 +67,55 @@ const STATUS_META: Record<PositionStatus, { label: string; className: string }> 
   refundable: { label: "Voided", className: "text-muted-foreground" },
 };
 
-function ClaimButton({ label }: { label: string }) {
+/**
+ * Sends an actual `claim_winnings` transaction
+ * (`lib/hooks/useClaimWinnings.ts`) and drives the same toast lifecycle
+ * every other real transaction in this app does (`sendAndConfirm`) — was
+ * a "Phase 6" placeholder toast until Session 7's demo rehearsal needed
+ * a genuinely working CLAIM button to record the full bet-to-receipt
+ * path. Same shape as `RefundButton` below, applied to the winnings side.
+ */
+function ClaimButton({
+  fixtureId,
+  outcome,
+  onClaimed,
+}: {
+  fixtureId: number;
+  outcome: Position["outcome"];
+  onClaimed?: () => void;
+}) {
+  const { claimWinnings } = useClaimWinnings(onClaimed);
+  const [claiming, setClaiming] = useState(false);
+
+  async function handleClick() {
+    if (claiming) return;
+    setClaiming(true);
+    try {
+      await claimWinnings(fixtureId, outcome);
+    } catch {
+      // sendAndConfirm already showed the error/rejection toast — nothing
+      // further to do here.
+    } finally {
+      setClaiming(false);
+    }
+  }
+
   return (
     <Button
       size="sm"
       className="bg-accent-gold text-accent-gold-foreground hover:bg-accent-gold/90"
-      onClick={() =>
-        toast(`${label} isn't wired up yet`, {
-          description: "Claiming lands in Phase 6.",
-        })
-      }
+      onClick={() => void handleClick()}
+      disabled={claiming}
     >
-      {label}
+      {claiming ? "Claiming…" : "Claim"}
     </Button>
   );
 }
 
 /**
- * The one real (non-placeholder) claim button in this file — sends an
- * actual `claim_refund` transaction (`lib/hooks/useClaimRefund.ts`) and
- * drives the same toast lifecycle every other real transaction in this
- * app does (`sendAndConfirm`), unlike `ClaimButton` above, which is still
- * a "Phase 6" stub for `claim_winnings`.
+ * Sends an actual `claim_refund` transaction (`lib/hooks/useClaimRefund.ts`)
+ * and drives the same toast lifecycle every other real transaction in
+ * this app does (`sendAndConfirm`).
  */
 function RefundButton({
   fixtureId,
@@ -126,9 +162,9 @@ function RefundButton({
  * doc comment), or the real settled amount once the market's moved past
  * that (`won`/`claimed` in emerald, `lost` muted, `refundable` neutral
  * with an explicit "Match voided — full refund available" line).
- * `refundable`'s REFUND button is real (`RefundButton`, `claim_refund`) —
- * `won`'s CLAIM button is still a placeholder toast, `claim_winnings`
- * isn't wired here yet.
+ * `refundable`'s REFUND button and `won`'s CLAIM button are both real —
+ * `RefundButton`/`ClaimButton` send actual `claim_refund`/`claim_winnings`
+ * transactions.
  */
 export function PositionRow({ position, className, onClaimed }: PositionRowProps) {
   const { fixtureId, home, away, stage, kickoffTs, fixtureStatus, pickLabel, outcome, amount, status, estPayout, payout } =
@@ -209,8 +245,7 @@ export function PositionRow({ position, className, onClaimed }: PositionRowProps
             <RefundButton fixtureId={fixtureId} outcome={outcome} onClaimed={onClaimed} />
           </div>
         ) : (
-          // won, unclaimed — still a placeholder toast; claim_winnings
-          // isn't wired here yet.
+          // won, unclaimed
           <div className="flex items-center gap-3">
             <div className="text-right">
               <p className={cn("text-[11px] uppercase tracking-wide", meta.className)}>{meta.label}</p>
@@ -218,7 +253,7 @@ export function PositionRow({ position, className, onClaimed }: PositionRowProps
                 {payout !== null ? formatUsdc(payout) : "—"} USDC
               </p>
             </div>
-            <ClaimButton label="Claim" />
+            <ClaimButton fixtureId={fixtureId} outcome={outcome} onClaimed={onClaimed} />
           </div>
         )}
       </div>

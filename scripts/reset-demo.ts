@@ -42,7 +42,7 @@ function resolveDevnetRpcUrl(): string {
 }
 
 async function isStillArmed(devWalletPubkey: Keypair["publicKey"], fixtureId: number, outcome: number): Promise<boolean> {
-  const readOnly = getReadOnlyProgram();
+  const readOnly = await getReadOnlyProgram();
   const marketClient = (readOnly.account as any)[MARKET_ACCOUNT_IDL_NAME];
   const betClient = (readOnly.account as any)[BET_ACCOUNT_IDL_NAME];
 

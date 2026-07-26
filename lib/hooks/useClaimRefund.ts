@@ -29,7 +29,7 @@ export function useClaimRefund(onSettled?: () => void): UseClaimRefundResult {
     async (fixtureId: number, outcome: Outcome) => {
       if (!wallet.publicKey) throw new Error("wallet not connected");
 
-      const program = getProgram(connection, wallet);
+      const program = await getProgram(connection, wallet);
       const tx = await claimRefundTx(program, { fixtureId: BigInt(fixtureId), outcome });
 
       const signature = await sendAndConfirm(connection, wallet, tx, { label: "Claiming refund" });

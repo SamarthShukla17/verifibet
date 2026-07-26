@@ -26,7 +26,7 @@ import {
   TxScoresSchema,
   TxScoresStatValidationSchema,
 } from "@/lib/txline/schemas";
-import { readThrough, FIXTURES_TTL_SECONDS, ODDS_TTL_SECONDS, PROOF_TTL_SECONDS } from "@/lib/cache";
+import { readThrough, readThroughStaleOnError, FIXTURES_TTL_SECONDS, ODDS_TTL_SECONDS, PROOF_TTL_SECONDS } from "@/lib/cache";
 import { findScenarioByDemoFixtureId, isDemoFixtureId, isDemoModeEnabled, loadDemoScenarios } from "@/lib/txline/demoScenarios";
 import type { z } from "zod";
 
@@ -119,8 +119,34 @@ export interface GetFixturesParams {
 export async function getFixtures(
   params: GetFixturesParams = {},
 ): Promise<TxFixture[]> {
-  const fixtures = await readThrough("fixtures:all", FIXTURES_TTL_SECONDS, () =>
-    fetchFixtures(params),
+  const { fixtures } = await getFixturesResilient(params);
+  return fixtures;
+}
+
+export interface FixturesResilientResult {
+  fixtures: TxFixture[];
+  /** `true` when TxLINE (and Upstash's normal `fixtures:all` cache) both
+   * failed and this is the last snapshot that ever succeeded — see
+   * `readThroughStaleOnError`'s own doc comment. `StatusTracker` reads
+   * this specifically so `/api/fixtures` can say so instead of either
+   * 500ing or silently pretending the data is current. */
+  stale: boolean;
+}
+
+/**
+ * Same data as `getFixtures`, plus whether it's a stale fallback —
+ * `getFixtures` itself stays a plain `TxFixture[]` for its many existing
+ * callers (scripts, other API routes) that have no use for a staleness
+ * flag and are fine failing loudly like before. Only
+ * `lib/txline/statusTracker.ts#hydrate` calls this one directly.
+ */
+export async function getFixturesResilient(
+  params: GetFixturesParams = {},
+): Promise<FixturesResilientResult> {
+  const { data: fixtures, stale } = await readThroughStaleOnError(
+    "fixtures:all",
+    FIXTURES_TTL_SECONDS,
+    () => fetchFixtures(params),
   );
 
   const filtered =
@@ -135,8 +161,8 @@ export async function getFixtures(
   // happen to cover it would undercut "visible in every frame" (see
   // components/DemoReplayBanner.tsx). Real fixtures always still come
   // through unchanged alongside it — this only ever adds, never replaces.
-  if (!isDemoModeEnabled()) return filtered;
-  return [...filtered, ...loadDemoScenarios().map((s) => s.fixture)];
+  if (!isDemoModeEnabled()) return { fixtures: filtered, stale };
+  return { fixtures: [...filtered, ...loadDemoScenarios().map((s) => s.fixture)], stale };
 }
 
 async function fetchFixtures(params: GetFixturesParams): Promise<TxFixture[]> {

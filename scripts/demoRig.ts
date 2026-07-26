@@ -105,7 +105,7 @@ interface FreshCandidate {
  * letting one bad fixture abort the whole search.
  */
 async function pickFreshRealFixture(excludeIds: number[]): Promise<FreshCandidate> {
-  const readOnly = getReadOnlyProgram();
+  const readOnly = await getReadOnlyProgram();
   const marketClient = (readOnly.account as any)[MARKET_ACCOUNT_IDL_NAME];
   const fixtures = await fetchTournamentFixtures();
 
@@ -169,7 +169,7 @@ interface DiscoveredWin {
  * as claimable" can't drift apart.
  */
 async function findAllClaimableWins(wallet: PublicKey): Promise<DiscoveredWin[]> {
-  const readOnly = getReadOnlyProgram();
+  const readOnly = await getReadOnlyProgram();
   const marketClient = (readOnly.account as any)[MARKET_ACCOUNT_IDL_NAME];
   const betClient = (readOnly.account as any)[BET_ACCOUNT_IDL_NAME];
 
@@ -197,7 +197,7 @@ async function findAllClaimableWins(wallet: PublicKey): Promise<DiscoveredWin[]>
  * `lib/solana/program.ts#claimWinnings`'s own doc comment). */
 async function claimAway(connection: Connection, devWallet: Keypair, fixtureId: number, outcome: Outcome): Promise<void> {
   const wallet = keypairWallet(devWallet);
-  const program = getProgram(connection, wallet);
+  const program = await getProgram(connection, wallet);
   const tx = await claimWinnings(program, { fixtureId: BigInt(fixtureId), outcome });
   const signature = await sendAndConfirm(connection, wallet, tx, { label: `claiming extra win on fixture ${fixtureId}` });
   console.log(`  fixture ${fixtureId}: extra claimable win — claimed away (${signature})`);
@@ -263,7 +263,7 @@ export async function ensureExactlyOneClaimableWin(
     console.log(`  market initialized (kickoff in ${KICKOFF_BUFFER_SECONDS}s) — ${market.toBase58()}`);
 
     const wallet = keypairWallet(devWallet);
-    const betProgram = getProgram(connection, wallet);
+    const betProgram = await getProgram(connection, wallet);
     const betTx = await placeBet(betProgram, {
       fixtureId: BigInt(picked.fixtureId),
       outcome: picked.outcome,

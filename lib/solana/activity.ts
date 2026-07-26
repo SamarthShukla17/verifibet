@@ -37,7 +37,7 @@ export interface BetActivity {
 const ACTIVITY_SIGNATURE_SCAN_LIMIT = 25;
 
 export async function fetchRecentBetActivity(fixtureId: number): Promise<BetActivity[]> {
-  const program = getReadOnlyProgram();
+  const program = await getReadOnlyProgram();
   const connection = program.provider.connection;
   const [market] = deriveMarket(BigInt(fixtureId));
 

@@ -22,9 +22,17 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const tracker = await getStatusTracker();
 
+  // `X-Fixtures-Stale` (not a body field): the response body stays a
+  // plain `TrackedFixture[]` — every existing caller (`useMyBets`,
+  // `MatchDetailBoard`, `app/matches/(list)/page.tsx`, ...) parses it as
+  // an array directly, and wrapping it in `{ fixtures, stale }` would be
+  // a breaking change across all of them. A header lets
+  // `components/FixturesStaleBanner.tsx` (the one consumer that actually
+  // cares) read the flag without touching that contract.
   return NextResponse.json(tracker.list(), {
     headers: {
       "Cache-Control": "public, s-maxage=15, stale-while-revalidate=30",
+      "X-Fixtures-Stale": String(tracker.isFixturesStale()),
     },
   });
 }

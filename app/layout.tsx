@@ -3,6 +3,7 @@ import { Inter, Space_Grotesk } from "next/font/google";
 import { WalletProvider } from "@/components/providers/WalletProvider";
 import { Toaster } from "@/components/ui/sonner";
 import { DemoReplayBanner } from "@/components/DemoReplayBanner";
+import { FixturesStaleBanner } from "@/components/FixturesStaleBanner";
 import "./globals.css";
 
 // Body copy — read-heavy UI (market lists, bet history, copy).
@@ -40,6 +41,10 @@ export default function RootLayout({
         {/* Mounted once, globally — see its own doc comment for why this
             has to be visible in every frame, not opted into per-page. */}
         <DemoReplayBanner />
+        {/* Same "visible in every frame, not per-page" reasoning as
+            DemoReplayBanner above — a TxLINE/RPC outage can happen on
+            any route, not just /matches. */}
+        <FixturesStaleBanner />
         {/* top-right — sonner's own fixed corner never overlaps
             BetSlip's fixed bottom-sheet (mobile) or sticky right rail
             (desktop), so toasts (including WalletUx's persistent

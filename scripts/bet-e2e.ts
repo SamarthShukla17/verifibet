@@ -85,7 +85,7 @@ async function main() {
   const [market] = deriveMarket(fixtureId);
   console.log(`market:   ${market.toBase58()}  (${explorerAddressUrl(market.toBase58())})`);
 
-  const readOnly = getReadOnlyProgram();
+  const readOnly = await getReadOnlyProgram();
   const marketAccountClient = (
     readOnly.account as Record<
       string,
@@ -103,11 +103,11 @@ async function main() {
     `kickoff:  ${new Date((marketAccount.kickoffTs as { toNumber(): number }).toNumber() * 1000).toISOString()}`,
   );
 
-  const vault = deriveVault(marketAccount.usdcMint as Parameters<typeof deriveVault>[0], market);
+  const vault = await deriveVault(marketAccount.usdcMint as Parameters<typeof deriveVault>[0], market);
   const vaultBefore = await getAccount(connection, vault);
   console.log(`vault before: ${vaultBefore.amount.toString()} (${formatUsdc(vaultBefore.amount)} USDC)`);
 
-  const program = getProgram(connection, wallet);
+  const program = await getProgram(connection, wallet);
   const tx = await placeBet(program, { fixtureId, outcome, amountBaseUnits });
 
   console.log(`\nplacing bet via lib/solana/program.ts#placeBet + sendAndConfirm...`);

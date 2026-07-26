@@ -50,7 +50,7 @@ function decodeMarketStatus(status: Record<string, unknown>): Lowercase<MarketSt
  * `kickoff_ts` to still be in the future, so most fixtures in this
  * compressed demo calendar never got one), not an error. */
 export async function fetchMarketAccount(fixtureId: number): Promise<MarketAccountData | null> {
-  const program = getReadOnlyProgram();
+  const program = await getReadOnlyProgram();
   const [market] = deriveMarket(BigInt(fixtureId));
 
   const accountInfo = await program.provider.connection.getAccountInfo(market);
@@ -82,7 +82,7 @@ export async function fetchMarketAccount(fixtureId: number): Promise<MarketAccou
  * account). Uses `dataSlice` so the RPC only ever returns the 32-byte
  * `user` field per matching account, not each `Bet`'s full data. */
 export async function fetchBettorCount(fixtureId: number): Promise<number> {
-  const program = getReadOnlyProgram();
+  const program = await getReadOnlyProgram();
   const [market] = deriveMarket(BigInt(fixtureId));
 
   const accounts = await program.provider.connection.getProgramAccounts(program.programId, {

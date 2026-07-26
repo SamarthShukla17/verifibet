@@ -30,7 +30,7 @@
  * of which specific transport (SSE here) is carrying the live feed.
  */
 import { EventEmitter } from "node:events";
-import { getFixtures, getScores } from "@/lib/txline/client";
+import { getFixturesResilient, getScores } from "@/lib/txline/client";
 import { getTxlineStream, type RawStatusEvent } from "@/lib/txline/stream";
 import { toFixture, toScoreEvent, fixtureStatusFromActionAndStatusId, isForwardStatusTransition } from "@/lib/txline/normalize";
 import { isDemoFixtureId } from "@/lib/txline/demoScenarios";
@@ -78,6 +78,7 @@ export interface StatusTrackerEvents {
   finished: number;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging -- standard Node typed-EventEmitter pattern: interface adds typed on/off/emit overloads, class supplies the real implementation
 export declare interface StatusTracker {
   on<K extends keyof StatusTrackerEvents>(
     event: K,
@@ -90,11 +91,22 @@ export declare interface StatusTracker {
   emit<K extends keyof StatusTrackerEvents>(event: K, fixtureId: StatusTrackerEvents[K]): boolean;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging -- see the interface above
 export class StatusTracker extends EventEmitter {
   private readonly fixtures = new Map<number, TrackedFixture>();
   private hydrated = false;
   private subscribed = false;
   private silenceCheckTimer: ReturnType<typeof setInterval> | null = null;
+  /** `true` once this process's hydration has ever had to fall back to
+   * Upstash's last-known-good `fixtures:all` snapshot because a live
+   * TxLINE fetch failed — see `getFixturesResilient`'s own doc comment.
+   * Sticky for the life of the process (not cleared on a later
+   * successful poll): `hydrate()` itself only ever runs its real fetch
+   * once per process (the `if (this.hydrated...) return` guard below),
+   * so this flag is really answering "did this process's cold start see
+   * TxLINE/RPC down," which stays true/worth surfacing even after the
+   * SSE stream catches up. */
+  private staleFixtures = false;
 
   /**
    * Loads the known fixture set from TxLINE's REST snapshot (or, for
@@ -113,18 +125,21 @@ export class StatusTracker extends EventEmitter {
     // `hydrate` only ever runs server-side (this class's only real
     // callers are `app/api/fixtures/route.ts` and `keeper/index.ts`), so
     // the check is safe here.
-    const list =
-      fixtures ??
-      (
-        await getFixtures({
-          competition: WORLD_CUP_COMPETITION_ID,
-          from: TOURNAMENT_START_EPOCH_DAY * ONE_DAY_SECONDS,
-        })
-      ).map((raw) => {
+    let list: Fixture[];
+    if (fixtures !== undefined) {
+      list = fixtures;
+    } else {
+      const resilient = await getFixturesResilient({
+        competition: WORLD_CUP_COMPETITION_ID,
+        from: TOURNAMENT_START_EPOCH_DAY * ONE_DAY_SECONDS,
+      });
+      this.staleFixtures = resilient.stale;
+      list = resilient.fixtures.map((raw) => {
         const fixture = toFixture(raw);
         if (isDemoFixtureId(fixture.fixtureId)) fixture.isDemo = true;
         return fixture;
       });
+    }
 
     for (const fixture of list) {
       const existing = this.fixtures.get(fixture.fixtureId);
@@ -171,6 +186,11 @@ export class StatusTracker extends EventEmitter {
 
   list(): TrackedFixture[] {
     return Array.from(this.fixtures.values());
+  }
+
+  /** See `staleFixtures`'s own doc comment. */
+  isFixturesStale(): boolean {
+    return this.staleFixtures;
   }
 
   /**

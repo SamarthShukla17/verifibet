@@ -5,7 +5,6 @@ import {
   filterPositionsForTab,
 } from "@/lib/portfolio";
 import type { Position, PositionStatus } from "@/lib/hooks/useMyBets";
-import type { MarketStatus } from "@/lib/types";
 
 let nextPda = 0;
 

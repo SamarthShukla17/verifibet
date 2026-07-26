@@ -133,4 +133,17 @@ export interface Receipt {
   proofPath: { hash: string; isRightSibling: boolean }[];
   verifiedLocally: boolean;
   resolvedAt: number;
+  /**
+   * `true` only for a demo-range market resolved via
+   * `resolve_market_attested` (see that instruction's own doc comment in
+   * `resolve_market.rs`, and `keeper/demoResolver.ts`) — no real TxLINE
+   * CPI ever verified this outcome, only the market's `authority`
+   * attested to it. `proofRoot`/`proofLeaf`/`proofPath` are still real
+   * (a genuine, independently-recomputable local commitment to the demo
+   * scenario's own committed data — see `lib/txline/demoScenarios.ts#demoProofHash`),
+   * just not TxLINE-anchored. Absent (not `false`) for every real,
+   * CPI-verified market — `Boolean(receipt.attested)` is the check, not
+   * `receipt.attested === false`.
+   */
+  attested?: boolean;
 }

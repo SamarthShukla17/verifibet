@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
     const fixtureId = fixtureIdParam ? Number(fixtureIdParam) : NaN;
     if (Number.isInteger(fixtureId) && fixtureId > 0) {
       try {
-        const program = getReadOnlyProgram();
+        const program = await getReadOnlyProgram();
         const receipt = await buildReceipt(program.provider.connection, program, fixtureId);
         proofText = shortHex(receipt.proofRoot);
         verified = receipt.verifiedLocally;

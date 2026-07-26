@@ -43,6 +43,8 @@ import { deriveMarket } from "@/lib/solana/pda";
 import { MARKET_ACCOUNT_IDL_NAME } from "@/lib/solana/program";
 import { fetchProof } from "@/lib/txline/proofs";
 import { verifyProof } from "@/lib/txline/verify";
+import { demoProofHash, findScenarioByDemoFixtureId, isDemoFixtureId } from "@/lib/txline/demoScenarios";
+import { toScoreEvent } from "@/lib/txline/normalize";
 import type { Outcome, Receipt } from "@/lib/types";
 
 // Same quirk documented in scripts/devnet-e2e.ts and
@@ -153,6 +155,52 @@ export async function buildReceipt(
       "not_resolved",
       `market for fixture ${fixtureId} is ${statusName}, not yet resolved`,
     );
+  }
+
+  // Demo-range markets are never resolved through resolve_market's real
+  // CPI (TxLINE has never heard of these fixture ids) — always through
+  // resolve_market_attested instead (see keeper/demoResolver.ts). There is
+  // no real TxLINE proof to fetch here; fetchProof(fixtureId) below would
+  // just fail against a fixture id TxLINE doesn't know. Built honestly
+  // from the same local scenario data + commitment hash the keeper itself
+  // submitted on-chain — never fabricated to look like a real proof (see
+  // Receipt.attested's own doc comment).
+  if (isDemoFixtureId(fixtureId)) {
+    const scenario = findScenarioByDemoFixtureId(fixtureId);
+    if (!scenario) {
+      throw new Error(`fixture ${fixtureId} is a demo-range id but no registered scenario claims it`);
+    }
+    const finalEvent = scenario.scores.find((e) => e.Action === "game_finalised");
+    const scoreEvent = finalEvent ? toScoreEvent(finalEvent) : null;
+    if (!scoreEvent) {
+      throw new Error(`scenario "${scenario.meta.scenario}" has no game_finalised Score data — cannot build a receipt`);
+    }
+
+    const resolveTxSig = await findResolveTxSignature(connection, market, fixtureId);
+    const commitment = demoProofHash(scenario.meta.scenario, fixtureId, decoded.outcome, scoreEvent.home, scoreEvent.away).toString(
+      "hex",
+    );
+
+    return {
+      fixtureId,
+      teams: { home: decoded.home, away: decoded.away },
+      finalScore: { home: scoreEvent.home, away: scoreEvent.away },
+      outcome: decoded.outcome as Outcome,
+      kickoffTs: decoded.kickoffTs.toNumber(),
+      pools: [decoded.pools[0].toString(), decoded.pools[1].toString(), decoded.pools[2].toString()],
+      totalPool: decoded.totalPool.toString(),
+      resolveTxSig,
+      explorerUrl: explorerTxUrl(resolveTxSig),
+      // Leaf === root === the one local commitment — there's no real
+      // Merkle chain to walk, so the "proof" is a single self-consistent
+      // node, not a fabricated multi-level TxLINE-shaped one.
+      proofRoot: commitment,
+      proofLeaf: commitment,
+      proofPath: [],
+      verifiedLocally: true,
+      resolvedAt: decoded.resolvedAt.toNumber(),
+      attested: true,
+    };
   }
 
   const [resolveTxSig, proof] = await Promise.all([

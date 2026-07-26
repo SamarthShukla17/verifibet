@@ -217,6 +217,7 @@ export interface TxlineStreamEvents {
  * per upstream stream (odds, scores); `TxlineStreamManager` below owns one
  * of each and merges their output into a single pub/sub.
  */
+// eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging -- standard Node typed-EventEmitter pattern: interface adds typed on/off/emit overloads, class supplies the real implementation
 export declare interface TxlineStream {
   on<K extends keyof TxlineStreamEvents>(
     event: K,
@@ -232,6 +233,7 @@ export declare interface TxlineStream {
   ): boolean;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging -- see the interface above
 export class TxlineStream extends EventEmitter {
   private readonly source: Source;
   private readonly kind: StreamKind;
@@ -317,6 +319,7 @@ export class TxlineStream extends EventEmitter {
  * thing per browser client, regardless of how many upstream streams that
  * actually takes.
  */
+// eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging -- standard Node typed-EventEmitter pattern: interface adds typed on/off/emit overloads, class supplies the real implementation
 export declare interface TxlineStreamManager {
   on<K extends keyof TxlineStreamEvents>(
     event: K,
@@ -332,6 +335,7 @@ export declare interface TxlineStreamManager {
   ): boolean;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging -- see the interface above
 export class TxlineStreamManager extends EventEmitter {
   private readonly streams: TxlineStream[] = [];
   private started = false;

@@ -9,7 +9,15 @@ function TeamMini({ name }: { name: string }) {
   const flag = flagUrl(name);
   return (
     <div className="flex min-w-0 flex-col items-center gap-2">
-      {flag && <img src={flag} alt="" className="h-12 w-12 shrink-0 rounded-full sm:h-16 sm:w-16" />}
+      {flag && (
+        <img
+          src={flag}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="h-12 w-12 shrink-0 rounded-full sm:h-16 sm:w-16"
+        />
+      )}
       <span className="max-w-[9rem] truncate font-display text-lg font-bold text-foreground sm:max-w-none sm:text-2xl">
         {name}
       </span>

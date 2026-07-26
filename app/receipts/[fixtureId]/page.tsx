@@ -27,7 +27,7 @@ function parseFixtureId(param: string): number | null {
 }
 
 async function loadReceipt(fixtureId: number): Promise<Receipt> {
-  const program = getReadOnlyProgram();
+  const program = await getReadOnlyProgram();
   return buildReceipt(program.provider.connection, program, fixtureId);
 }
 
@@ -62,8 +62,9 @@ export async function generateMetadata({
   }
 
   const title = `${receipt.teams.home} ${receipt.finalScore.home}–${receipt.finalScore.away} ${receipt.teams.away} — Verified Receipt — VERIFIBET`;
-  const description =
-    "Settled on-chain and independently verifiable against TxODDS TxLINE — every proof checkable by anyone, not just us.";
+  const description = receipt.attested
+    ? "Demo scenario — resolved by authority attestation, not independently verified against TxODDS TxLINE."
+    : "Settled on-chain and independently verifiable against TxODDS TxLINE — every proof checkable by anyone, not just us.";
 
   // The aggregate, non-personal framing (see this route's own doc
   // comment on why "mode=receipt" needs an amount/payout at all): the

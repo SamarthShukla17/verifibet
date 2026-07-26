@@ -15,6 +15,7 @@
  * `lib/txline/client.ts` serves for a demo fixture.
  */
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import type { TxFixture, TxOdds, TxScore } from "@/lib/txline/types";
 
@@ -233,4 +234,19 @@ export function listDemoScenarios(): DemoScenarioSummary[] {
 export function pickDefaultScenario(): DemoScenario | undefined {
   const best = listDemoScenarios()[0];
   return best ? findScenarioByName(best.scenario) : undefined;
+}
+
+/**
+ * Honest local commitment for a demo-range market's `resolve_market_attested`
+ * resolution (Session 7 exit) — a plain sha256 over the scenario identity
+ * + derived outcome + final score, never a stand-in for a real TxLINE
+ * Merkle proof. The one place this preimage is defined; both
+ * `keeper/demoResolver.ts` (computing it to submit on-chain) and
+ * `lib/receipts.ts` (recomputing it to render an honest demo receipt)
+ * import it from here rather than keeping their own copies that could
+ * drift out of sync with each other.
+ */
+export function demoProofHash(scenario: string, fixtureId: number, outcome: number, home: number, away: number): Buffer {
+  const preimage = `demo-scenario:${scenario}:${fixtureId}:${outcome}:${home}-${away}`;
+  return createHash("sha256").update(preimage).digest();
 }

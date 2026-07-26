@@ -95,7 +95,7 @@ interface WalletAgg {
 }
 
 async function computeLeaderboard(): Promise<LeaderboardEntry[]> {
-  const program = getReadOnlyProgram();
+  const program = await getReadOnlyProgram();
   const betClient = (
     program.account as Record<string, { all(): Promise<{ publicKey: PublicKey; account: DecodedBet }[]> }>
   )[BET_ACCOUNT_IDL_NAME];

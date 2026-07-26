@@ -53,8 +53,16 @@ export interface MatchHeaderProps {
   kickoffTs: number;
   marketStatus: MarketStatus;
   isLive: boolean;
-  /** Present only once `isLive` — a live score with no minute yet (the
-   * very first tick after kickoff) is a real, normal transient state. */
+  /** `true` once the fixture has finished — swaps the caption from "Live
+   * now"/kickoff time to "Full-time" and keeps `score` on screen instead
+   * of reverting to "vs" (a real bug found live in Session 7's demo
+   * rehearsal: jumping the replay to Full-time flipped `isLive` false
+   * before this existed, so the hero briefly showed "vs" again right at
+   * the one moment a viewer most wants to see the final score). */
+  isFinished?: boolean;
+  /** Present once `isLive` or `isFinished` — a live score with no minute
+   * yet (the very first tick after kickoff) is a real, normal transient
+   * state. */
   liveScore?: { home: number; away: number; minute?: number } | null;
 }
 
@@ -74,6 +82,7 @@ export function MatchHeader({
   kickoffTs,
   marketStatus,
   isLive,
+  isFinished,
   liveScore,
 }: MatchHeaderProps) {
   return (
@@ -97,7 +106,7 @@ export function MatchHeader({
           <TeamLockup name={home} align="left" />
 
           <div className="flex shrink-0 flex-col items-center gap-1">
-            {isLive && liveScore ? (
+            {(isLive || isFinished) && liveScore ? (
               <span className="tabular font-display text-4xl font-bold text-foreground sm:text-6xl">
                 {liveScore.home}
                 <span className="mx-2 text-muted-foreground">–</span>
@@ -114,7 +123,7 @@ export function MatchHeader({
         </div>
 
         <p className="mt-5 text-center text-sm text-muted-foreground">
-          {isLive ? "Live now" : formatKickoff(kickoffTs)}
+          {isLive ? "Live now" : isFinished ? "Full-time" : formatKickoff(kickoffTs)}
         </p>
       </div>
     </div>

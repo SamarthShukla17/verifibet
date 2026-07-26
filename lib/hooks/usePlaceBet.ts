@@ -42,7 +42,10 @@ export function usePlaceBet(
 ): UsePlaceBetResult {
   const { connection } = useConnection();
   const wallet = useWallet();
-  const { usdc: balance, loading: balanceLoading, refresh: refreshBalance } = useBalances();
+  // The market's own usdc_mint, not a hardcoded assumption — see
+  // useBalances.ts's own doc comment on why that matters now that not
+  // every market shares the same mint.
+  const { usdc: balance, loading: balanceLoading, refresh: refreshBalance } = useBalances(market?.usdcMint);
 
   const placeBet = useCallback(
     async (fixtureId: number, outcome: Outcome, amountInput: string) => {
@@ -52,7 +55,7 @@ export function usePlaceBet(
       const amountBaseUnits = parseUsdc(amountInput);
       if (amountBaseUnits === null || amountBaseUnits <= 0n) throw new Error("invalid bet amount");
 
-      const program = getProgram(connection, wallet);
+      const program = await getProgram(connection, wallet);
       const tx = await placeBetTx(program, {
         fixtureId: BigInt(fixtureId),
         outcome,

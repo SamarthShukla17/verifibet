@@ -15,9 +15,24 @@
  * `getReadOnlyProgram` is devnet-only, matching every other read-only call
  * site in this repo — `CONFIG.devnet.rpcUrl` directly, not `NETWORK`,
  * since this hackathon's target is devnet only (see CLAUDE.md).
+ *
+ * `@solana/spl-token` is imported dynamically inside each transaction
+ * builder below, not statically at module scope — that package
+ * (transitively `bn.js`/`buffer`/`@solana/buffer-layout`/`borsh`) is
+ * ~65KB gzipped, and this module is reachable from every page that
+ * renders `BetSlip` (including `/matches`'s list view). A static import
+ * would ship that weight in every route's first-load JS even though it's
+ * only ever needed once a transaction is actually being built.
+ *
+ * `@coral-xyz/anchor` itself is dynamically imported for the same reason
+ * (in `getReadOnlyProgram`/`getProgram` specifically) — it's a large,
+ * not-very-tree-shakeable SDK, and every real caller here is already
+ * inside an async function (a `useEffect` fetch, a submit handler).
+ * `anchor.Idl`/`anchor.Program`/`anchor.Wallet` type references below
+ * stay as regular `import type` — types are erased at compile time and
+ * cost nothing in the shipped bundle.
  */
-import * as anchor from "@coral-xyz/anchor";
-import { BN } from "@coral-xyz/anchor";
+import type * as anchor from "@coral-xyz/anchor";
 import {
   Connection,
   Keypair,
@@ -26,12 +41,6 @@ import {
   type Transaction,
   type VersionedTransaction,
 } from "@solana/web3.js";
-import {
-  ASSOCIATED_TOKEN_PROGRAM_ID,
-  TOKEN_PROGRAM_ID,
-  createAssociatedTokenAccountIdempotentInstruction,
-  getAssociatedTokenAddressSync,
-} from "@solana/spl-token";
 import type { WalletContextState } from "@solana/wallet-adapter-react";
 import { CONFIG } from "@/lib/config";
 import { deriveBet, deriveMarket, deriveVault, PROGRAM_ID } from "@/lib/solana/pda";
@@ -59,12 +68,13 @@ function noopWallet(publicKey: PublicKey) {
   };
 }
 
-export function getReadOnlyProgram(): anchor.Program {
+export async function getReadOnlyProgram(): Promise<anchor.Program> {
+  const { AnchorProvider, Program } = await import("@coral-xyz/anchor");
   const connection = new Connection(CONFIG.devnet.rpcUrl, "confirmed");
-  const provider = new anchor.AnchorProvider(connection, noopWallet(Keypair.generate().publicKey), {
+  const provider = new AnchorProvider(connection, noopWallet(Keypair.generate().publicKey), {
     commitment: "confirmed",
   });
-  return new anchor.Program({ ...(verifibetIdl as anchor.Idl), address: PROGRAM_ID.toBase58() }, provider);
+  return new Program({ ...(verifibetIdl as anchor.Idl), address: PROGRAM_ID.toBase58() }, provider);
 }
 
 /**
@@ -77,12 +87,13 @@ export function getReadOnlyProgram(): anchor.Program {
  * undefined on `WalletContextState`'s type (some adapters don't implement
  * it) never actually matters here.
  */
-export function getProgram(connection: Connection, wallet: WalletContextState): anchor.Program {
+export async function getProgram(connection: Connection, wallet: WalletContextState): Promise<anchor.Program> {
   if (!wallet.publicKey) throw new Error("Wallet not connected");
-  const provider = new anchor.AnchorProvider(connection, wallet as unknown as anchor.Wallet, {
+  const { AnchorProvider, Program } = await import("@coral-xyz/anchor");
+  const provider = new AnchorProvider(connection, wallet as unknown as anchor.Wallet, {
     commitment: "confirmed",
   });
-  return new anchor.Program({ ...(verifibetIdl as anchor.Idl), address: PROGRAM_ID.toBase58() }, provider);
+  return new Program({ ...(verifibetIdl as anchor.Idl), address: PROGRAM_ID.toBase58() }, provider);
 }
 
 export interface PlaceBetParams {
@@ -114,6 +125,10 @@ export interface PlaceBetParams {
  * can just as easily derive itself.
  */
 export async function placeBet(program: anchor.Program, params: PlaceBetParams): Promise<Transaction> {
+  const { BN } = await import("@coral-xyz/anchor");
+  const { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_PROGRAM_ID, createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddressSync } =
+    await import("@solana/spl-token");
+
   const user = program.provider.publicKey;
   if (!user) throw new Error("Wallet not connected");
 
@@ -127,7 +142,7 @@ export async function placeBet(program: anchor.Program, params: PlaceBetParams):
 
   const [bet] = deriveBet(market, user, params.outcome);
   const userUsdc = getAssociatedTokenAddressSync(usdcMint, user);
-  const vault = deriveVault(usdcMint, market);
+  const vault = await deriveVault(usdcMint, market);
 
   const tx = await program.methods
     .placeBet(params.outcome, new BN(params.amountBaseUnits.toString()))
@@ -178,6 +193,8 @@ export interface ClaimRefundParams {
  * "never trust Anchor's own PDA auto-resolution" reasoning as `placeBet`.
  */
 export async function claimRefund(program: anchor.Program, params: ClaimRefundParams): Promise<Transaction> {
+  const { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } = await import("@solana/spl-token");
+
   const user = program.provider.publicKey;
   if (!user) throw new Error("Wallet not connected");
 
@@ -191,7 +208,7 @@ export async function claimRefund(program: anchor.Program, params: ClaimRefundPa
 
   const [bet] = deriveBet(market, user, params.outcome);
   const userUsdc = getAssociatedTokenAddressSync(usdcMint, user);
-  const vault = deriveVault(usdcMint, market);
+  const vault = await deriveVault(usdcMint, market);
 
   return program.methods
     .claimRefund()
@@ -231,6 +248,8 @@ export interface ClaimWinningsParams {
  * reasoning as `claimRefund` above.
  */
 export async function claimWinnings(program: anchor.Program, params: ClaimWinningsParams): Promise<Transaction> {
+  const { TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } = await import("@solana/spl-token");
+
   const user = program.provider.publicKey;
   if (!user) throw new Error("Wallet not connected");
 
@@ -244,7 +263,7 @@ export async function claimWinnings(program: anchor.Program, params: ClaimWinnin
 
   const [bet] = deriveBet(market, user, params.outcome);
   const userUsdc = getAssociatedTokenAddressSync(usdcMint, user);
-  const vault = deriveVault(usdcMint, market);
+  const vault = await deriveVault(usdcMint, market);
 
   return program.methods
     .claimWinnings()

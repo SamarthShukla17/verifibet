@@ -102,3 +102,66 @@ export async function readThrough<T>(
 
   return fresh;
 }
+
+const STALE_KEY_PREFIX = "stale:";
+
+export interface StaleWhileErrorResult<T> {
+  data: T;
+  /** `true` when `fetcher` itself failed (TxLINE and/or the RPC it wraps
+   * are down) and this is the last snapshot that ever succeeded, not
+   * fresh data. */
+  stale: boolean;
+}
+
+/**
+ * Like `readThrough`, but never lets a live-fetch failure become a thrown
+ * error as long as *some* fetch has ever succeeded before: every
+ * successful `fetcher()` call also writes a second, durable copy under
+ * `stale:<key>` (no TTL — unlike `key` itself, which still expires
+ * normally per `ttlSeconds`), and a failing `fetcher()` falls back to
+ * reading that copy instead of propagating the error. Only throws when
+ * `fetcher()` fails *and* no durable snapshot exists yet (a cold start
+ * with TxLINE/RPC down from the very first request) or Upstash isn't
+ * configured at all — there's nothing to fall back to either way.
+ *
+ * Deliberately a separate function from `readThrough`, not a flag on it:
+ * every existing `readThrough` caller (`getOdds`, `getValidationProof`)
+ * is fine failing loudly on a live-fetch error — `getFixtures` (via
+ * `getFixturesResilient` below) is the one call in this app where "the
+ * whole page white-screens" is worse than "the page shows the last
+ * fixtures TxLINE ever gave us, honestly labeled stale."
+ */
+export async function readThroughStaleOnError<T>(
+  key: string,
+  ttlSeconds: number | null,
+  fetcher: () => Promise<T>,
+): Promise<StaleWhileErrorResult<T>> {
+  const redis = getRedis();
+
+  let fresh: T;
+  try {
+    fresh = await fetcher();
+  } catch (err) {
+    if (!redis) throw err;
+    console.warn(`[cache] live fetch for ${key} failed — falling back to last-known-good`, err);
+    try {
+      const stale = await redis.get<T>(`${STALE_KEY_PREFIX}${key}`);
+      if (stale !== null && stale !== undefined) return { data: stale, stale: true };
+    } catch (staleErr) {
+      console.warn(`[cache] GET stale:${key} also failed`, staleErr);
+    }
+    throw err; // nothing to fall back to
+  }
+
+  if (redis) {
+    try {
+      if (ttlSeconds === null) await redis.set(key, fresh);
+      else await redis.set(key, fresh, { ex: ttlSeconds });
+      await redis.set(`${STALE_KEY_PREFIX}${key}`, fresh);
+    } catch (err) {
+      console.warn(`[cache] SET ${key} failed — result still returned, just not cached`, err);
+    }
+  }
+
+  return { data: fresh, stale: false };
+}

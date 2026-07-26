@@ -60,7 +60,19 @@ function state(scenario: string): DemoControlState {
   const map = stateMap();
   let s = map.get(scenario);
   if (!s) {
-    s = { speed: getDemoSpeed(), paused: false, jumpGeneration: 0, jumpTargetT: 0 };
+    // Starts PAUSED, not playing (Session 7 exit) — confirmed live, not
+    // theoretical: a scenario used to start playing immediately at
+    // whatever `getDemoSpeed()` is (60x by default), completely decoupled
+    // from a fresh on-chain market's own kickoff_ts (scripts/rearm-scenario.ts)
+    // or from whether a presenter is even ready — by the time a
+    // real-world setup step (funding a wallet, opening the browser)
+    // takes a couple of minutes, the replay had already raced ahead past
+    // its own Full-time, and the keeper had already locked/attempted to
+    // resolve the market before a single bet was placed. Starting paused
+    // means a scenario only ever advances when a presenter explicitly
+    // hits Play or a chapter-jump button (`jumpDemoTo` already un-pauses
+    // on jump) — never silently, on its own clock.
+    s = { speed: getDemoSpeed(), paused: true, jumpGeneration: 0, jumpTargetT: 0 };
     map.set(scenario, s);
   }
   return s;

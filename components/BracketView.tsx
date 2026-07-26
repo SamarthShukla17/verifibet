@@ -91,7 +91,17 @@ function TeamRow({
   return (
     <div className={cn("flex items-center justify-between gap-1.5 px-2.5 py-1.5", winner && "bg-primary/10")}>
       <span className="flex min-w-0 items-center gap-1.5">
-        {flag && <img src={flag} alt="" width={14} height={14} className="h-3.5 w-3.5 shrink-0 rounded-full" />}
+        {flag && (
+          <img
+            src={flag}
+            alt=""
+            width={14}
+            height={14}
+            loading="lazy"
+            decoding="async"
+            className="h-3.5 w-3.5 shrink-0 rounded-full"
+          />
+        )}
         <span className={cn("truncate text-xs", winner ? "font-semibold text-foreground" : "text-muted-foreground")}>
           {name}
         </span>

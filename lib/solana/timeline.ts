@@ -46,7 +46,7 @@ const EMPTY_TIMELINE: MarketTimeline = {
 };
 
 export async function buildMarketTimeline(fixtureId: number): Promise<MarketTimeline> {
-  const program = getReadOnlyProgram();
+  const program = await getReadOnlyProgram();
   const connection = program.provider.connection;
   const [market] = deriveMarket(BigInt(fixtureId));
 

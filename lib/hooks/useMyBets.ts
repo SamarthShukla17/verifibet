@@ -161,7 +161,7 @@ export function useMyBets(): UseMyBetsResult {
     }
 
     try {
-      const program = getProgram(connection, wallet);
+      const program = await getProgram(connection, wallet);
       const betClient = (
         program.account as Record<
           string,

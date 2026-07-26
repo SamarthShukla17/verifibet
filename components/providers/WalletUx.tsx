@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { toast } from "sonner";
 import { HelpCard } from "@/components/wallet/HelpCard";
@@ -12,8 +11,15 @@ import { CIRCLE_DEVNET_USDC_MINT } from "@/lib/config";
  * hiccup checking the balance returns `false` (unknown), not a false
  * "you're broke": that's a separate concern (see NetworkGuard.tsx), and
  * conflating the two would show a misleading nudge over a connectivity
- * problem. */
+ * problem.
+ *
+ * `@solana/spl-token` is imported dynamically here (see
+ * `lib/solana/program.ts`'s doc comment) — this whole component is
+ * itself dynamic-imported with `ssr: false` from `WalletProvider.tsx` for
+ * the same reason, but the inner dynamic import stays too in case this
+ * function is ever called from somewhere that isn't already lazy. */
 async function hasZeroOrMissingUsdc(connection: Connection, owner: PublicKey): Promise<boolean> {
+  const { getAssociatedTokenAddressSync } = await import("@solana/spl-token");
   const ata = getAssociatedTokenAddressSync(new PublicKey(CIRCLE_DEVNET_USDC_MINT), owner);
   const accountInfo = await connection.getAccountInfo(ata);
   if (!accountInfo) return true; // ATA never created — definitely zero.

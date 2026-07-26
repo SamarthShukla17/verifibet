@@ -5,7 +5,7 @@ import type { TxScore } from "@/lib/txline/types";
 import type { Fixture } from "@/lib/types";
 
 vi.mock("@/lib/txline/client", () => ({
-  getFixtures: vi.fn(),
+  getFixturesResilient: vi.fn(),
   getScores: vi.fn(),
 }));
 import { getScores } from "@/lib/txline/client";

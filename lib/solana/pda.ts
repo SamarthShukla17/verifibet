@@ -12,7 +12,6 @@
  * of the two modules each keeping their own copy.
  */
 import { PublicKey } from "@solana/web3.js";
-import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import type { Outcome } from "@/lib/types";
 
 export const PROGRAM_ID = new PublicKey(
@@ -55,7 +54,17 @@ export function deriveBet(market: PublicKey, user: PublicKey, outcome: Outcome):
  * which by construction never sits on the ed25519 curve. Still centralized
  * here rather than inlined at each call site, same as the two derivations
  * above — one place, not three copies that could drift.
+ *
+ * `async`, dynamically importing `@solana/spl-token` rather than a static
+ * top-level import: that package (transitively `bn.js`, `buffer`,
+ * `@solana/buffer-layout`, `borsh`) is ~65KB gzipped, and every real
+ * caller of this function is already inside an async transaction-building
+ * call (`lib/solana/program.ts`'s `placeBet`/`claimWinnings`/
+ * `claimRefund`) — deferring the import to first call keeps that weight
+ * out of every route's first-load JS (including `/matches`, which renders
+ * `BetSlip` unconditionally) instead of shipping it on every page load.
  */
-export function deriveVault(usdcMint: PublicKey, market: PublicKey): PublicKey {
+export async function deriveVault(usdcMint: PublicKey, market: PublicKey): Promise<PublicKey> {
+  const { getAssociatedTokenAddressSync } = await import("@solana/spl-token");
   return getAssociatedTokenAddressSync(usdcMint, market, true);
 }

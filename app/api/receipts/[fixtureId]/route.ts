@@ -51,7 +51,7 @@ export async function GET(
     );
   }
 
-  const program = getReadOnlyProgram();
+  const program = await getReadOnlyProgram();
 
   try {
     const receipt = await buildReceipt(program.provider.connection, program, fixtureId);

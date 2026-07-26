@@ -72,7 +72,7 @@
           "docs": [
             "Pinned into `market.usdc_mint` below. Every later token-moving",
             "instruction re-checks its own mint account against that field",
-            "rather than trusting whatever's passed in — see",
+            "rather than trusting whatever's passed in \u2014 see",
             "`VerifibetError::MintMismatch`."
           ]
         },
@@ -80,7 +80,7 @@
           "name": "vault",
           "docs": [
             "The market's escrow. Always the canonical associated token account",
-            "of `market` for `usdc_mint` — created here (not lazily on the first",
+            "of `market` for `usdc_mint` \u2014 created here (not lazily on the first",
             "bet) so the first bettor doesn't pay the vault's rent, and so there",
             "is exactly one valid vault address per market by construction."
           ],
@@ -226,7 +226,7 @@
           "name": "market",
           "docs": [
             "Re-derived from the market's own stored `fixture_id`/`bump` (not an",
-            "instruction arg — `place_bet` doesn't take one) so this is",
+            "instruction arg \u2014 `place_bet` doesn't take one) so this is",
             "guaranteed to be the canonical PDA for whatever fixture it claims,",
             "not just any `Market`-typed account."
           ],
@@ -374,7 +374,7 @@
           "name": "associated_token_program",
           "docs": [
             "Required by Anchor's `associated_token::*` constraint resolution on",
-            "`vault` above (not otherwise touched — the vault already exists)."
+            "`vault` above (not otherwise touched \u2014 the vault already exists)."
           ],
           "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
         }
@@ -480,27 +480,27 @@
           "docs": [
             "`Program<'info, T>` already enforces this is exactly TxLINE's",
             "deployed program (`txline_validate::ID`, embedded from the IDL's",
-            "own `address` field) — no other program can be substituted here."
+            "own `address` field) \u2014 no other program can be substituted here."
           ],
           "address": "6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J"
         },
         {
           "name": "daily_scores_merkle_roots",
           "docs": [
-            "rather than a typed `Account<'info, _>` — we have no (and shouldn't",
+            "rather than a typed `Account<'info, _>` \u2014 we have no (and shouldn't",
             "invent any) view into its internal layout; `validate_stat` is the",
             "only thing that reads it. What *is* checked here: the `seeds` +",
             "`seeds::program` constraint below re-derives this as TxLINE's daily",
             "Merkle-root PDA for the epoch day implied by `ts`, rather than",
-            "trusting whatever account the caller passes — TxLINE's own",
+            "trusting whatever account the caller passes \u2014 TxLINE's own",
             "`validate_stat` independently re-checks this PDA too, but this",
             "closes the gap before a mismatched-day account even reaches the",
             "CPI. `validate_stat`'s own IDL entry has exactly this one account,",
-            "confirmed via `cargo expand` — not \"config/root PDAs\" plural, just",
+            "confirmed via `cargo expand` \u2014 not \"config/root PDAs\" plural, just",
             "this one.",
             "",
             "`.clamp(0, u16::MAX as i64)` (security audit finding, SECURITY.md",
-            "§5): `ts` is keeper-supplied and signed i64; an unclamped `ts /",
+            "\u00a75): `ts` is keeper-supplied and signed i64; an unclamped `ts /",
             "MS_PER_DAY` on a negative or absurdly large `ts` would silently",
             "truncate on the `as u16` cast instead of erroring. Not independently",
             "exploitable (a wrapped epoch day just fails to match any account",
@@ -593,7 +593,7 @@
           "name": "market",
           "docs": [
             "Re-derived from the market's own stored `fixture_id`/`bump`, same",
-            "as every other instruction that touches an existing `Market` — see",
+            "as every other instruction that touches an existing `Market` \u2014 see",
             "`resolve_market.rs`. Not `mut`: see the module doc comment."
           ],
           "pda": {
@@ -624,11 +624,11 @@
           "name": "bet",
           "docs": [
             "Seeds re-derive this from the account's own stored `outcome`",
-            "(`claim_winnings` takes no `outcome` argument — there's exactly one",
+            "(`claim_winnings` takes no `outcome` argument \u2014 there's exactly one",
             "correct value, whatever this specific bet was placed on) against",
             "the *passed-in* `market`/`user` accounts, which already guarantees",
             "this bet belongs to both of them. `has_one = user` / `has_one =",
-            "market` re-check the same thing the simpler way — redundant with",
+            "market` re-check the same thing the simpler way \u2014 redundant with",
             "the seeds constraint, kept anyway as an independent check that",
             "doesn't rely on the seeds derivation being bug-free."
           ],
@@ -637,7 +637,7 @@
         {
           "name": "vault",
           "docs": [
-            "The market's escrow — identical constraints to `place_bet`'s",
+            "The market's escrow \u2014 identical constraints to `place_bet`'s",
             "`vault`: always the canonical ATA of `market` for `usdc_mint`, so",
             "there is no account that can redirect the payout elsewhere."
           ],
@@ -940,6 +940,64 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "resolve_market_attested",
+      "discriminator": [
+        175,
+        170,
+        27,
+        201,
+        141,
+        32,
+        241,
+        20
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "market",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market.fixture_id",
+                "account": "Market"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "outcome",
+          "type": "u8"
+        },
+        {
+          "name": "proof_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
     }
   ],
   "accounts": [
@@ -970,163 +1028,6 @@
       ]
     }
   ],
-  "events": [
-    {
-      "name": "verifibet::instructions::void_and_refund::RefundClaimed",
-      "discriminator": [
-        136,
-        64,
-        242,
-        99,
-        4,
-        244,
-        208,
-        130
-      ]
-    },
-    {
-      "name": "verifibet::instructions::place_bet::BetPlaced",
-      "discriminator": [
-        88,
-        88,
-        145,
-        226,
-        126,
-        206,
-        32,
-        0
-      ]
-    },
-    {
-      "name": "verifibet::instructions::claim_winnings::WinningsClaimed",
-      "discriminator": [
-        187,
-        184,
-        29,
-        196,
-        54,
-        117,
-        70,
-        150
-      ]
-    },
-    {
-      "name": "verifibet::instructions::initialize_market::MarketInitialized",
-      "discriminator": [
-        134,
-        160,
-        122,
-        87,
-        50,
-        3,
-        255,
-        81
-      ]
-    },
-    {
-      "name": "verifibet::instructions::void_and_refund::VoidedMarket",
-      "discriminator": [
-        13,
-        3,
-        158,
-        243,
-        9,
-        239,
-        155,
-        224
-      ]
-    },
-    {
-      "name": "verifibet::instructions::resolve_market::MarketResolved",
-      "discriminator": [
-        89,
-        67,
-        230,
-        95,
-        143,
-        106,
-        199,
-        202
-      ]
-    }
-  ],
-  "errors": [
-    {
-      "code": 6000,
-      "name": "MarketNotOpen",
-      "msg": "Market is not open"
-    },
-    {
-      "code": 6001,
-      "name": "KickoffPassed",
-      "msg": "Kickoff has already passed"
-    },
-    {
-      "code": 6002,
-      "name": "KickoffNotPassed",
-      "msg": "Kickoff has not passed yet"
-    },
-    {
-      "code": 6003,
-      "name": "InvalidOutcome",
-      "msg": "Outcome must be 0 (home), 1 (draw), or 2 (away)"
-    },
-    {
-      "code": 6004,
-      "name": "MarketNotResolved",
-      "msg": "Market is not resolved"
-    },
-    {
-      "code": 6005,
-      "name": "MarketNotVoided",
-      "msg": "Market is not voided"
-    },
-    {
-      "code": 6006,
-      "name": "NotWinningBet",
-      "msg": "Bet did not win"
-    },
-    {
-      "code": 6007,
-      "name": "AlreadyClaimed",
-      "msg": "Bet has already been claimed"
-    },
-    {
-      "code": 6008,
-      "name": "Unauthorized",
-      "msg": "Signer is not authorized for this action"
-    },
-    {
-      "code": 6009,
-      "name": "ZeroAmount",
-      "msg": "Amount must be greater than zero"
-    },
-    {
-      "code": 6010,
-      "name": "MathOverflow",
-      "msg": "Arithmetic overflow"
-    },
-    {
-      "code": 6011,
-      "name": "TooEarlyToVoid",
-      "msg": "Too early to void this market"
-    },
-    {
-      "code": 6012,
-      "name": "MintMismatch",
-      "msg": "Token account mint does not match the market's usdc_mint"
-    },
-    {
-      "code": 6013,
-      "name": "NameTooLong",
-      "msg": "Team name exceeds 24 bytes"
-    },
-    {
-      "code": 6014,
-      "name": "InvalidStatProof",
-      "msg": "Stat proof does not represent a valid full-time result comparison"
-    }
-  ],
   "types": [
     {
       "name": "verifibet::state::Bet",
@@ -1144,7 +1045,7 @@
           {
             "name": "outcome",
             "docs": [
-              "0 = home, 1 = draw, 2 = away — never `OUTCOME_UNSET`; a `Bet`",
+              "0 = home, 1 = draw, 2 = away \u2014 never `OUTCOME_UNSET`; a `Bet`",
               "account only ever exists for a specific staked outcome."
             ],
             "type": "u8"
@@ -1178,7 +1079,7 @@
             "name": "authority",
             "docs": [
               "Keeper authority allowed to lock/resolve/void this market. Checked",
-              "per-instruction against this field — never assumed to be a fixed,",
+              "per-instruction against this field \u2014 never assumed to be a fixed,",
               "program-wide admin key."
             ],
             "type": "pubkey"
@@ -1188,7 +1089,7 @@
             "docs": [
               "USDC mint pinned at `initialize_market`. Every token-moving",
               "instruction re-checks accounts against this field rather than",
-              "trusting whatever mint is passed in — see `VerifibetError::MintMismatch`."
+              "trusting whatever mint is passed in \u2014 see `VerifibetError::MintMismatch`."
             ],
             "type": "pubkey"
           },
@@ -1227,7 +1128,7 @@
           {
             "name": "outcome",
             "docs": [
-              "0 = home, 1 = draw, 2 = away, 255 = unset (`OUTCOME_UNSET`) —",
+              "0 = home, 1 = draw, 2 = away, 255 = unset (`OUTCOME_UNSET`) \u2014",
               "matches the encoding documented in CLAUDE.md / `lib/types.ts`'s",
               "`Outcome`."
             ],
@@ -1435,9 +1336,8 @@
       }
     },
     {
-      "name": "verifibet::instructions::void_and_refund::RefundClaimed",
+      "name": "verifibet::instructions::claim_winnings::WinningsClaimed",
       "type": {
-        "kind": "struct",
         "fields": [
           {
             "name": "market",
@@ -1451,13 +1351,33 @@
             "name": "payout",
             "type": "u64"
           }
-        ]
+        ],
+        "kind": "struct"
+      }
+    },
+    {
+      "name": "verifibet::instructions::initialize_market::MarketInitialized",
+      "type": {
+        "fields": [
+          {
+            "name": "fixture_id",
+            "type": "u64"
+          },
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "kickoff_ts",
+            "type": "i64"
+          }
+        ],
+        "kind": "struct"
       }
     },
     {
       "name": "verifibet::instructions::place_bet::BetPlaced",
       "type": {
-        "kind": "struct",
         "fields": [
           {
             "name": "market",
@@ -1484,13 +1404,13 @@
               ]
             }
           }
-        ]
+        ],
+        "kind": "struct"
       }
     },
     {
-      "name": "verifibet::instructions::claim_winnings::WinningsClaimed",
+      "name": "verifibet::instructions::void_and_refund::RefundClaimed",
       "type": {
-        "kind": "struct",
         "fields": [
           {
             "name": "market",
@@ -1504,49 +1424,13 @@
             "name": "payout",
             "type": "u64"
           }
-        ]
-      }
-    },
-    {
-      "name": "verifibet::instructions::initialize_market::MarketInitialized",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "fixture_id",
-            "type": "u64"
-          },
-          {
-            "name": "market",
-            "type": "pubkey"
-          },
-          {
-            "name": "kickoff_ts",
-            "type": "i64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "verifibet::instructions::void_and_refund::VoidedMarket",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "market",
-            "type": "pubkey"
-          },
-          {
-            "name": "fixture_id",
-            "type": "u64"
-          }
-        ]
+        ],
+        "kind": "struct"
       }
     },
     {
       "name": "verifibet::instructions::resolve_market::MarketResolved",
       "type": {
-        "kind": "struct",
         "fields": [
           {
             "name": "market",
@@ -1569,8 +1453,183 @@
               ]
             }
           }
-        ]
+        ],
+        "kind": "struct"
       }
+    },
+    {
+      "name": "verifibet::instructions::void_and_refund::VoidedMarket",
+      "type": {
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "fixture_id",
+            "type": "u64"
+          }
+        ],
+        "kind": "struct"
+      }
+    }
+  ],
+  "constants": [],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "MarketNotOpen",
+      "msg": "Market is not open"
+    },
+    {
+      "code": 6001,
+      "name": "KickoffPassed",
+      "msg": "Kickoff has already passed"
+    },
+    {
+      "code": 6002,
+      "name": "KickoffNotPassed",
+      "msg": "Kickoff has not passed yet"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidOutcome",
+      "msg": "Outcome must be 0 (home), 1 (draw), or 2 (away)"
+    },
+    {
+      "code": 6004,
+      "name": "MarketNotResolved",
+      "msg": "Market is not resolved"
+    },
+    {
+      "code": 6005,
+      "name": "MarketNotVoided",
+      "msg": "Market is not voided"
+    },
+    {
+      "code": 6006,
+      "name": "NotWinningBet",
+      "msg": "Bet did not win"
+    },
+    {
+      "code": 6007,
+      "name": "AlreadyClaimed",
+      "msg": "Bet has already been claimed"
+    },
+    {
+      "code": 6008,
+      "name": "Unauthorized",
+      "msg": "Signer is not authorized for this action"
+    },
+    {
+      "code": 6009,
+      "name": "ZeroAmount",
+      "msg": "Amount must be greater than zero"
+    },
+    {
+      "code": 6010,
+      "name": "MathOverflow",
+      "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6011,
+      "name": "TooEarlyToVoid",
+      "msg": "Too early to void this market"
+    },
+    {
+      "code": 6012,
+      "name": "MintMismatch",
+      "msg": "Token account mint does not match the market's usdc_mint"
+    },
+    {
+      "code": 6013,
+      "name": "NameTooLong",
+      "msg": "Team name exceeds 24 bytes"
+    },
+    {
+      "code": 6014,
+      "name": "InvalidStatProof",
+      "msg": "Stat proof does not represent a valid full-time result comparison"
+    }
+  ],
+  "events": [
+    {
+      "discriminator": [
+        187,
+        184,
+        29,
+        196,
+        54,
+        117,
+        70,
+        150
+      ],
+      "name": "verifibet::instructions::claim_winnings::WinningsClaimed"
+    },
+    {
+      "discriminator": [
+        134,
+        160,
+        122,
+        87,
+        50,
+        3,
+        255,
+        81
+      ],
+      "name": "verifibet::instructions::initialize_market::MarketInitialized"
+    },
+    {
+      "discriminator": [
+        88,
+        88,
+        145,
+        226,
+        126,
+        206,
+        32,
+        0
+      ],
+      "name": "verifibet::instructions::place_bet::BetPlaced"
+    },
+    {
+      "discriminator": [
+        136,
+        64,
+        242,
+        99,
+        4,
+        244,
+        208,
+        130
+      ],
+      "name": "verifibet::instructions::void_and_refund::RefundClaimed"
+    },
+    {
+      "discriminator": [
+        89,
+        67,
+        230,
+        95,
+        143,
+        106,
+        199,
+        202
+      ],
+      "name": "verifibet::instructions::resolve_market::MarketResolved"
+    },
+    {
+      "discriminator": [
+        13,
+        3,
+        158,
+        243,
+        9,
+        239,
+        155,
+        224
+      ],
+      "name": "verifibet::instructions::void_and_refund::VoidedMarket"
     }
   ]
 }

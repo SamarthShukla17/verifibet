@@ -1,6 +1,19 @@
+import { Suspense } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { FilterRailUrlSync } from "@/components/market/FilterRailUrlSync";
+import { Skeleton } from "@/components/ui/skeleton";
+
+/** Matches `FilterRail`'s own `hidden lg:block lg:w-60` root so the
+ * fallback claims the same layout space — no shift when the real
+ * `useSearchParams()`-backed rail mounts. */
+function FilterRailFallback() {
+  return (
+    <aside className="hidden lg:block lg:w-60 lg:shrink-0">
+      <Skeleton className="h-96 w-full rounded-xl" />
+    </aside>
+  );
+}
 
 /**
  * Navbar, filter rail, and footer live here rather than in page.tsx so
@@ -15,7 +28,9 @@ export default function MatchesLayout({ children }: { children: React.ReactNode 
       <Navbar />
 
       <div className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:flex lg:items-start lg:gap-8">
-        <FilterRailUrlSync />
+        <Suspense fallback={<FilterRailFallback />}>
+          <FilterRailUrlSync />
+        </Suspense>
         {children}
       </div>
 

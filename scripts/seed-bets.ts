@@ -137,7 +137,7 @@ function keypairWallet(keypair: Keypair): WalletContextState {
  * complicate `DEMO_BETS`) but falls back to anything fresh if it can't
  * find enough. */
 async function pickFreshFixtures(count: number): Promise<TxFixture[]> {
-  const readOnly = getReadOnlyProgram();
+  const readOnly = await getReadOnlyProgram();
   const marketClient = (
     readOnly.account as Record<string, { fetchNullable(addr: PublicKey): Promise<unknown | null> }>
   )[MARKET_ACCOUNT_IDL_NAME];
@@ -284,7 +284,7 @@ async function main() {
     const fixture = fixtures[plan.fixtureIndex];
     const amountBaseUnits = BigInt(Math.round(plan.amountUsdc * 1_000_000));
 
-    const program = getProgram(connection, wallet);
+    const program = await getProgram(connection, wallet);
     const tx = await placeBet(program, {
       fixtureId: BigInt(fixture.FixtureId),
       outcome: plan.outcome,

@@ -50,17 +50,27 @@ import { buildKeeperContext } from "@/keeper/context";
 import { lockMarketJob, syncMarketsJob } from "@/keeper/jobs";
 import { resolveFixture } from "@/keeper/resolver";
 import { isVoidCandidate, voidMarketJob } from "@/keeper/void";
+import { pollLiveDemoFixtureStatuses, resolveDemoFixtureJob } from "@/keeper/demoResolver";
 
 const TICK_MS = 60_000;
 const SYNC_INTERVAL_MS = 60 * 60 * 1000; // hourly
 const HEALTH_PORT = 8787;
+
+/** Much shorter than `TICK_MS` — this is the "keeper resolves within
+ * 60s" polling loop for demo-range fixtures (Phase 7 exit), see
+ * `keeper/demoResolver.ts`'s own doc comment for why demo fixtures need
+ * their own HTTP-polled loop instead of just riding `reconcile()`'s
+ * tracker-based one. 8s keeps the worst case (presenter jumps to FT
+ * right after a poll just fired) comfortably inside 60s once the enqueue
+ * + send + confirm overhead is added. */
+const DEMO_POLL_MS = 8_000;
 
 /** 30s -> 2m -> 10m, capped at 10m for any further attempt within one
  * enqueue-to-give-up cycle. */
 const BACKOFF_MS = [30_000, 120_000, 600_000];
 const MAX_ATTEMPTS = 5;
 
-type JobType = "lockMarket" | "resolveMarket" | "voidMarket";
+type JobType = "lockMarket" | "resolveMarket" | "voidMarket" | "resolveDemoMarket";
 
 interface QueuedJob {
   id: string;
@@ -119,7 +129,9 @@ async function main() {
           ? await lockMarketJob(ctx, job.fixtureId)
           : job.type === "voidMarket"
             ? await voidMarketJob(ctx, job.fixtureId)
-            : await resolveFixture(ctx, job.fixtureId, logger);
+            : job.type === "resolveDemoMarket"
+              ? await resolveDemoFixtureJob(ctx, job.fixtureId)
+              : await resolveFixture(ctx, job.fixtureId, logger);
       logger.info(
         { job: job.type, fixtureId: job.fixtureId, txSig: result.txSig, action: result.action },
         `${job.type} ${result.action}`,
@@ -189,6 +201,22 @@ async function main() {
     }
   }
 
+  /** Phase 7 exit: the demo-range half of "kickoff auto-locks, FT
+   * auto-resolves" — see `keeper/demoResolver.ts`'s own doc comment for
+   * why this polls the running app over HTTP instead of riding this
+   * process's own `tracker`. A fetch failure (app not up, momentary
+   * network hiccup) returns `null` and is silently skipped — same
+   * "nothing to do this tick" treatment `runSyncMarkets` gives a failure,
+   * not a crash. */
+  async function pollDemoFixtures(): Promise<void> {
+    const statuses = await pollLiveDemoFixtureStatuses();
+    if (!statuses) return;
+    for (const [fixtureId, status] of statuses) {
+      if (status === "LIVE") enqueue("lockMarket", fixtureId);
+      else if (status === "FINISHED") enqueue("resolveDemoMarket", fixtureId);
+    }
+  }
+
   tracker.on("kickoff", (fixtureId) => enqueue("lockMarket", fixtureId));
   tracker.on("finished", (fixtureId) => enqueue("resolveMarket", fixtureId));
 
@@ -201,6 +229,10 @@ async function main() {
     reconcile();
     void processQueue();
   }, TICK_MS);
+
+  const demoPollTimer = setInterval(() => {
+    void pollDemoFixtures();
+  }, DEMO_POLL_MS);
 
   const server = createServer((req, res) => {
     if (req.url === "/healthz") {
@@ -227,6 +259,7 @@ async function main() {
     shuttingDown = true;
     logger.info({ signal }, "shutting down");
     clearInterval(tickTimer);
+    clearInterval(demoPollTimer);
     tracker.stop();
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 5_000).unref();

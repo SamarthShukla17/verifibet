@@ -27,6 +27,13 @@ RAW_OUT="$(mktemp)"
 
 mkdir -p target/idl target/types
 
+# EXTRA_FEATURES (comma-separated, optional): additional Cargo features to
+# build the IDL with on top of idl-build — e.g.
+# `EXTRA_FEATURES=manual-fallback ./scripts/build-idl.sh` to include
+# resolve_market_attested in the generated IDL for a manual-fallback deploy.
+# Unset for the default submission build.
+FEATURES="idl-build${EXTRA_FEATURES:+,$EXTRA_FEATURES}"
+
 (
   cd "$PROGRAM_DIR"
   ANCHOR_IDL_BUILD_NO_DOCS=FALSE \
@@ -34,7 +41,7 @@ mkdir -p target/idl target/types
   ANCHOR_IDL_BUILD_SKIP_LINT=FALSE \
   ANCHOR_IDL_BUILD_PROGRAM_PATH="$(pwd)" \
   RUSTFLAGS="-A warnings" \
-  cargo test __anchor_private_print_idl --features idl-build -- --show-output --quiet
+  cargo test __anchor_private_print_idl --features "$FEATURES" -- --show-output --quiet
 ) >"$RAW_OUT" 2>&1 || { cat "$RAW_OUT"; exit 1; }
 
 python3 - "$RAW_OUT" "$OUT_JSON" <<'PY'

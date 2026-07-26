@@ -56,7 +56,15 @@ function TeamMini({ name }: { name: string }) {
   const flag = flagUrl(name);
   return (
     <div className="flex min-w-0 flex-col items-center gap-1.5">
-      {flag && <img src={flag} alt="" className="h-8 w-8 shrink-0 rounded-full sm:h-10 sm:w-10" />}
+      {flag && (
+        <img
+          src={flag}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="h-8 w-8 shrink-0 rounded-full sm:h-10 sm:w-10"
+        />
+      )}
       <span className="max-w-[110px] truncate text-xs font-semibold text-foreground sm:max-w-[140px] sm:text-sm">
         {name}
       </span>
@@ -252,10 +260,24 @@ export function ProofPanel({ receipt }: ProofPanelProps) {
 
   return (
     <div className="space-y-5 rounded-xl border border-border bg-card p-4 sm:p-5">
-      <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+      <div
+        className={cn(
+          "flex items-center gap-2 text-sm font-semibold",
+          receipt.attested ? "text-accent-gold" : "text-primary",
+        )}
+      >
         <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
-        Settled by TxODDS TxLINE — outcome verified on-chain
+        {receipt.attested
+          ? "Demo scenario — resolved by authority attestation, not TxLINE"
+          : "Settled by TxODDS TxLINE — outcome verified on-chain"}
       </div>
+      {receipt.attested && (
+        <p className="-mt-3 text-xs text-muted-foreground">
+          This is a demo-range market, resolved by an authority attestation (see README) — the outcome below
+          is a real historical result from this scenario&apos;s own recorded/reconstructed data, but no
+          TxLINE Merkle proof backs it. Never used for a real market.
+        </p>
+      )}
 
       <div className="flex items-center justify-center gap-4 py-1 sm:gap-6">
         <TeamMini name={receipt.teams.home} />
@@ -269,14 +291,16 @@ export function ProofPanel({ receipt }: ProofPanelProps) {
 
       <div className="flex justify-center">
         <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-          {winnerFlag && <img src={winnerFlag} alt="" className="h-3.5 w-3.5 rounded-full" />}
+          {winnerFlag && (
+            <img src={winnerFlag} alt="" loading="lazy" decoding="async" className="h-3.5 w-3.5 rounded-full" />
+          )}
           {receipt.outcome === 1 ? "Match drawn" : `${winner} won`}
         </span>
       </div>
 
       <div>
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          The proof, made human
+          {receipt.attested ? "The commitment, made human" : "The proof, made human"}
         </p>
         <div className="flex items-center gap-1 overflow-x-auto pb-2">
           <NodeBox kicker="Leaf" state={nodeState(0, false)}>
@@ -297,7 +321,7 @@ export function ProofPanel({ receipt }: ProofPanelProps) {
 
           <div className="flex items-center gap-1">
             <Connector active={receipt.proofPath.length < litCount} />
-            <NodeBox kicker="Root (on-chain)" state={nodeState(totalSegments, true)}>
+            <NodeBox kicker={receipt.attested ? "Local commitment (on-chain)" : "Root (on-chain)"} state={nodeState(totalSegments, true)}>
               <HashTag value={receipt.proofRoot} />
             </NodeBox>
           </div>
@@ -311,7 +335,9 @@ export function ProofPanel({ receipt }: ProofPanelProps) {
         {verifyState === "success" && (
           <p className="flex items-center gap-1.5 text-center text-sm font-semibold text-accent-gold">
             <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
-            Root reconstructed locally — this result cannot be forged.
+            {receipt.attested
+              ? "Commitment matches this scenario's own recorded data — attested, not independently proven."
+              : "Root reconstructed locally — this result cannot be forged."}
           </p>
         )}
         {verifyState === "failure" && (
@@ -329,13 +355,19 @@ export function ProofPanel({ receipt }: ProofPanelProps) {
           display={truncateMiddle(receipt.resolveTxSig, 10, 8)}
           linkKind="tx"
         />
-        <FactRow label="Proof root" value={receipt.proofRoot} display={truncateMiddle(receipt.proofRoot, 10, 8)} />
         <FactRow
-          label="TxLINE program"
-          value={NETWORK.txlineProgramId}
-          display={truncateMiddle(NETWORK.txlineProgramId, 10, 8)}
-          linkKind="program"
+          label={receipt.attested ? "Commitment" : "Proof root"}
+          value={receipt.proofRoot}
+          display={truncateMiddle(receipt.proofRoot, 10, 8)}
         />
+        {!receipt.attested && (
+          <FactRow
+            label="TxLINE program"
+            value={NETWORK.txlineProgramId}
+            display={truncateMiddle(NETWORK.txlineProgramId, 10, 8)}
+            linkKind="program"
+          />
+        )}
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -375,8 +407,13 @@ export function ProofPanel({ receipt }: ProofPanelProps) {
         </button>
         {showPlainEnglish && (
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            TxODDS publishes match-data fingerprints on Solana. Our contract only pays out when the
-            result matches those fingerprints — VERIFIBET never touches the outcome.
+            {receipt.attested
+              ? "This is a demo scenario, not a real market — there's no TxLINE data to check it against, " +
+                "so the deployer's own key attested to the result directly. The hash above just proves this " +
+                "receipt matches this scenario's own recorded data unchanged; it doesn't independently prove " +
+                "the result itself, the way a real market's TxLINE proof does."
+              : "TxODDS publishes match-data fingerprints on Solana. Our contract only pays out when the " +
+                "result matches those fingerprints — VERIFIBET never touches the outcome."}
           </p>
         )}
       </div>

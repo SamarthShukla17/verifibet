@@ -1,16 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { ExplorerLink } from "@/components/ExplorerLink";
 import { KeeperStatCard } from "@/components/keeper/KeeperStatCard";
 import { KeeperActionsTable } from "@/components/keeper/KeeperActionsTable";
-import { KeeperSparkline } from "@/components/keeper/KeeperSparkline";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatSol } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { KeeperHealthz, KeeperWallet } from "@/app/api/keeper/status/route";
 import type { KeeperLogEntry, SparklineBucket } from "@/app/api/keeper/logs/route";
+
+/** `ssr: false` + dynamic import — `recharts` is ~96KB gzipped, the
+ * single heaviest dependency in this app (see NOTES.md). `KeeperSparkline`
+ * takes only plain serializable props, so deferring it costs nothing but
+ * a brief skeleton. */
+const KeeperSparkline = dynamic(() => import("@/components/keeper/KeeperSparkline").then((m) => m.KeeperSparkline), {
+  ssr: false,
+  loading: () => <Skeleton className="h-24 w-full rounded-xl" />,
+});
 
 /** Below this, the wallet card switches to alert styling — a keeper that
  * runs out of SOL can build every transaction correctly and still never
@@ -107,12 +117,12 @@ export default function KeeperDashboardPage() {
           />
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          The autonomous operator's own status — read-only, no wallet required.
+          The autonomous operator&apos;s own status — read-only, no wallet required.
         </p>
 
         {error && (
           <p className="mt-4 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-            Couldn't reach the dashboard API — retrying every {REFRESH_INTERVAL_MS / 1000}s.
+            Couldn&apos;t reach the dashboard API — retrying every {REFRESH_INTERVAL_MS / 1000}s.
           </p>
         )}
 

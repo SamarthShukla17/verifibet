@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useLiveFixture } from "@/lib/hooks/useLiveFixture";
 import { useMarketAccount } from "@/lib/hooks/useMarketAccount";
 import { usePlaceBet } from "@/lib/hooks/usePlaceBet";
 import { fixtureStatusFromActionAndStatusId, isForwardStatusTransition } from "@/lib/txline/normalize";
 import { isKnockoutStage, marketStatusFromFixtureStatus } from "@/lib/market";
 import { MatchHeader } from "@/components/match/MatchHeader";
-import { OddsChart } from "@/components/OddsChart";
 import { OddsDisplay } from "@/components/market/OddsDisplay";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { PoolPanel } from "@/components/match/PoolPanel";
@@ -15,7 +15,19 @@ import { ActivityTab } from "@/components/match/ActivityTab";
 import { VerificationTab } from "@/components/match/VerificationTab";
 import { BetSlip, type BetSlipSelection } from "@/components/bet/BetSlip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { FixtureStage, FixtureStatus, MarketStatus, Outcome, ScoreEvent } from "@/lib/types";
+
+/** `ssr: false` + dynamic import: `recharts` (+ its `victory-vendor`/d3,
+ * `@reduxjs/toolkit`, `decimal.js-light` transitive weight) is ~96KB
+ * gzipped, the single heaviest dependency in this app — see NOTES.md's
+ * bundle-analysis section. `OddsChart` takes only plain serializable
+ * props, so deferring it costs nothing but a brief skeleton the first
+ * time this panel scrolls into view. */
+const OddsChart = dynamic(() => import("@/components/OddsChart").then((m) => m.OddsChart), {
+  ssr: false,
+  loading: () => <Skeleton className="h-72 w-full rounded-xl" />,
+});
 
 export interface MatchDetailBoardProps {
   fixtureId: number;
@@ -77,6 +89,7 @@ export function MatchDetailBoard({
   }, [live.status]);
 
   const isLive = liveStatus === "LIVE";
+  const isFinished = liveStatus === "FINISHED";
   // Prefer the real on-chain Market.status once one exists — the
   // TxLINE-fixture-status heuristic (marketStatusFromFixtureStatus) is
   // only a stand-in for pages with no on-chain market data at all (the
@@ -152,7 +165,10 @@ export function MatchDetailBoard({
         kickoffTs={kickoffTs}
         marketStatus={marketStatus}
         isLive={isLive}
-        liveScore={isLive ? { home: score?.home ?? 0, away: score?.away ?? 0, minute: score?.minute } : null}
+        isFinished={isFinished}
+        liveScore={
+          isLive || isFinished ? { home: score?.home ?? 0, away: score?.away ?? 0, minute: score?.minute } : null
+        }
       />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px] lg:items-start">

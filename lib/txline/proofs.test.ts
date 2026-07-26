@@ -48,6 +48,7 @@ describe("proofs.normalize — real captured proof.sample.json (Brazil v Norway,
 
   it("throws when statToProve2 is missing (FT_RESULT is inherently two-stat)", () => {
     const raw = proofSample as TxScoresStatValidation;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured only to exclude them from withoutSecondStat
     const { statToProve2, statProof2, ...withoutSecondStat } = raw;
     expect(() =>
       normalize(18187298, "FT_RESULT", 1100, withoutSecondStat as TxScoresStatValidation),

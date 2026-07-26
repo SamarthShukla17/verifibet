@@ -297,7 +297,7 @@ async function ensureDemoRangeMarkets(
  * re-betting; this script's own spec calls for idempotent instead). */
 async function placeVariedBets(connection: Connection, plan: DemoBetPlan[]): Promise<void> {
   const usdcMint = resolveUsdcMint();
-  const readOnly = getReadOnlyProgram();
+  const readOnly = await getReadOnlyProgram();
   const betClient = (readOnly.account as any)[BET_ACCOUNT_IDL_NAME];
 
   const totalNeededByWallet = new Map<DemoName, number>();
@@ -342,7 +342,7 @@ async function placeVariedBets(connection: Connection, plan: DemoBetPlan[]): Pro
     }
 
     const wallet = keypairWallet(keypair);
-    const program = getProgram(connection, wallet);
+    const program = await getProgram(connection, wallet);
     const tx = await placeBet(program, {
       fixtureId: BigInt(p.fixtureId),
       outcome: p.outcome,

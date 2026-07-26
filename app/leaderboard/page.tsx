@@ -225,7 +225,7 @@ export default function LeaderboardPage() {
         <div className="mt-4 space-y-2">
           {error ? (
             <div className="rounded-xl border border-dashed border-border bg-card/40 p-8 text-center text-sm text-muted-foreground">
-              Couldn't load the leaderboard — try again shortly.
+              Couldn&apos;t load the leaderboard — try again shortly.
             </div>
           ) : sorted === null ? (
             <>

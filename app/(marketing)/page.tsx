@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { ArrowDown, Lock, ShieldCheck, Trophy } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
@@ -5,6 +6,7 @@ import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { MatchCard } from "@/components/market/MatchCard";
 import { BracketView } from "@/components/BracketView";
+import { Skeleton } from "@/components/ui/skeleton";
 import { getStatusTracker, type TrackedFixture } from "@/lib/txline/statusTracker";
 import { marketStatusFromFixtureStatus } from "@/lib/market";
 
@@ -57,37 +59,22 @@ const STEPS = [
   },
 ];
 
-export default async function MarketingPage() {
+/**
+ * Everything on the landing page that depends on `getStatusTracker()`'s
+ * fetch (live strip + bracket), pulled into its own async component and
+ * wrapped in a nested `<Suspense>` below — not a route-level
+ * `loading.tsx`. The hero above it is entirely static copy and is this
+ * page's actual LCP element; blocking it behind the same fetch these two
+ * sections need would hurt LCP for zero benefit, and "How verification
+ * works" further down has no data dependency either.
+ */
+async function LiveStripAndBracket() {
   const tracker = await getStatusTracker();
   const fixtures = tracker.list();
   const liveStrip = pickLiveStripFixtures(fixtures);
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <Navbar />
-
-      {/* Hero */}
-      <section className="mx-auto w-full max-w-5xl px-4 py-16 text-center sm:px-6 sm:py-24">
-        <h1 className="text-balance font-display text-4xl font-bold leading-tight text-foreground sm:text-5xl md:text-6xl">
-          Bet on the World Cup. <span className="text-primary">Verify every settlement.</span>
-        </h1>
-        <p className="mx-auto mt-5 max-w-2xl text-balance text-base text-muted-foreground sm:text-lg">
-          Parimutuel markets on all 104 matches. USDC escrowed on Solana. Settled by cryptographic
-          proof from TxODDS — not by us.
-        </p>
-        <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <Button asChild size="lg" className="glow-emerald w-full sm:w-auto">
-            <Link href="/matches">Browse Matches</Link>
-          </Button>
-          <Button asChild size="lg" variant="outline" className="w-full sm:w-auto">
-            <a href="#how-it-works" className="inline-flex items-center gap-1.5">
-              How verification works
-              <ArrowDown className="h-4 w-4" aria-hidden />
-            </a>
-          </Button>
-        </div>
-      </section>
-
+    <>
       {/* Live strip */}
       {liveStrip.fixtures.length > 0 && (
         <section className="border-t border-border bg-card/30 py-10">
@@ -127,6 +114,55 @@ export default async function MarketingPage() {
           <BracketView fixtures={fixtures} />
         </div>
       </section>
+    </>
+  );
+}
+
+/** Matches `LiveStripAndBracket`'s bracket section's own height closely
+ * enough to avoid a big reflow once it resolves — the live strip is
+ * conditional (may not render at all), so this only mocks the bracket. */
+function LiveStripAndBracketFallback() {
+  return (
+    <section className="border-t border-border py-12">
+      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
+        <Skeleton className="h-7 w-48" />
+        <Skeleton className="mt-2 h-4 w-96" />
+        <Skeleton className="mt-6 h-96 w-full rounded-xl" />
+      </div>
+    </section>
+  );
+}
+
+export default function MarketingPage() {
+  return (
+    <div className="flex min-h-screen flex-col bg-background">
+      <Navbar />
+
+      {/* Hero */}
+      <section className="mx-auto w-full max-w-5xl px-4 py-16 text-center sm:px-6 sm:py-24">
+        <h1 className="text-balance font-display text-4xl font-bold leading-tight text-foreground sm:text-5xl md:text-6xl">
+          Bet on the World Cup. <span className="text-primary">Verify every settlement.</span>
+        </h1>
+        <p className="mx-auto mt-5 max-w-2xl text-balance text-base text-muted-foreground sm:text-lg">
+          Parimutuel markets on all 104 matches. USDC escrowed on Solana. Settled by cryptographic
+          proof from TxODDS — not by us.
+        </p>
+        <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <Button asChild size="lg" className="glow-emerald w-full sm:w-auto">
+            <Link href="/matches">Browse Matches</Link>
+          </Button>
+          <Button asChild size="lg" variant="outline" className="w-full sm:w-auto">
+            <a href="#how-it-works" className="inline-flex items-center gap-1.5">
+              How verification works
+              <ArrowDown className="h-4 w-4" aria-hidden />
+            </a>
+          </Button>
+        </div>
+      </section>
+
+      <Suspense fallback={<LiveStripAndBracketFallback />}>
+        <LiveStripAndBracket />
+      </Suspense>
 
       {/* How verification works */}
       <section id="how-it-works" className="scroll-mt-20 border-t border-border bg-card/30 py-14">

@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { toast } from "sonner";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -14,6 +13,8 @@ import { PositionRow } from "@/components/bet/PositionRow";
 import { StreakChip } from "@/components/bet/StreakChip";
 import { useMyBets } from "@/lib/hooks/useMyBets";
 import type { Position } from "@/lib/hooks/useMyBets";
+import { useClaimWinnings } from "@/lib/hooks/useClaimWinnings";
+import { useClaimRefund } from "@/lib/hooks/useClaimRefund";
 import {
   claimablePositions,
   computePortfolioStats,
@@ -35,13 +36,10 @@ const EMPTY_COPY: Record<PortfolioTab, string> = {
   all: "You haven't placed a bet yet.",
 };
 
-/** Purely cosmetic pacing for the "Claim All" sequence below — long
- * enough that each toast is actually readable one at a time, short
- * enough that claiming a real handful of positions doesn't feel like a
- * chore. Not simulating real confirmation latency (nothing here sends a
- * transaction — see `handleClaimAll`'s own doc comment), just making the
- * *sequential* part of "sequential with progress toasts" visible. */
-const CLAIM_STEP_MS = 500;
+/** Gap between each real claim transaction in the "Claim All" sequence —
+ * long enough that each one's own toast is actually readable before the
+ * next fires, not simulating any real confirmation latency (`sendAndConfirm`
+ * itself already waits for a real confirmation per position). */
 const CLAIM_GAP_MS = 350;
 
 function sleep(ms: number): Promise<void> {
@@ -146,15 +144,18 @@ export default function PortfolioPage() {
 
   const stats = useMemo(() => computePortfolioStats(positions ?? []), [positions]);
   const claimable = useMemo(() => claimablePositions(positions ?? []), [positions]);
+  const { claimWinnings } = useClaimWinnings();
+  const { claimRefund } = useClaimRefund();
 
   /**
    * Sequential, one position at a time, each with its own progress toast
-   * — the UX shape `claim_winnings`/`claim_refund` will actually drive
-   * once wired (Phase 6). Nothing here builds or sends a transaction:
-   * each step ends in the same placeholder toast `PositionRow`'s own
-   * single CLAIM button already shows, just reached from a loop instead
-   * of one click — honest about not being wired yet rather than faking a
-   * success state for a claim that didn't happen.
+   * — real `claim_winnings`/`claim_refund` transactions now (Session 7's
+   * demo rehearsal wired both), dispatched per position based on its own
+   * `status` (`won` -> `claim_winnings`, `refundable` -> `claim_refund`;
+   * `claimablePositions` never returns anything else). One position
+   * failing (a rejected wallet popup, an RPC hiccup) doesn't abort the
+   * rest — `sendAndConfirm` already surfaces that position's own
+   * error/rejection toast, and the loop just moves on to the next one.
    */
   async function handleClaimAll() {
     if (claimAllProgress !== null || claimable.length === 0) return;
@@ -163,12 +164,19 @@ export default function PortfolioPage() {
     for (let i = 0; i < total; i++) {
       const position = claimable[i];
       setClaimAllProgress({ current: i + 1, total });
-      const toastId = toast.loading(`Claiming ${position.pickLabel} (${i + 1}/${total})…`);
-      await sleep(CLAIM_STEP_MS);
-      toast(`Claim isn't wired up yet`, { id: toastId, description: "Claiming lands in Phase 6." });
+      try {
+        if (position.status === "won") {
+          await claimWinnings(position.fixtureId, position.outcome);
+        } else {
+          await claimRefund(position.fixtureId, position.outcome);
+        }
+      } catch {
+        // sendAndConfirm already showed the error/rejection toast.
+      }
       await sleep(CLAIM_GAP_MS);
     }
 
+    refresh();
     setClaimAllProgress(null);
   }
 
@@ -183,7 +191,7 @@ export default function PortfolioPage() {
           <div>
             <h1 className="font-display text-2xl font-bold text-foreground">Portfolio</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Every position you've staked, straight from your own on-chain bets.
+              Every position you&apos;ve staked, straight from your own on-chain bets.
             </p>
           </div>
 

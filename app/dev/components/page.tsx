@@ -5,7 +5,7 @@ import { MarketStatusBadge } from "@/components/market/MarketStatusBadge";
 import { OddsDisplay } from "@/components/market/OddsDisplay";
 import { MatchCard } from "@/components/market/MatchCard";
 import { BetSlip, type BetSlipSelection } from "@/components/bet/BetSlip";
-import type { Fixture, MarketStatus, OddsSnapshot, Outcome } from "@/lib/types";
+import type { Fixture, OddsSnapshot, Outcome } from "@/lib/types";
 
 /**
  * Dev-only gallery — every state of the four core components against

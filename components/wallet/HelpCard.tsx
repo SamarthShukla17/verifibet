@@ -28,7 +28,7 @@ export function HelpCard({ onDismiss }: HelpCardProps) {
         <div className="min-w-0 flex-1">
           <p className="font-display text-sm font-semibold text-foreground">No devnet USDC yet</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            You'll need some to place a bet. Circle's devnet faucet covers it — the mint every
+            You&apos;ll need some to place a bet. Circle&apos;s devnet faucet covers it — the mint every
             market on this build actually settles in.
           </p>
           <a

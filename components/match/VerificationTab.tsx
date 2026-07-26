@@ -73,7 +73,7 @@ export function VerificationTab({ fixtureId }: VerificationTabProps) {
         Proof appears here at full time.
       </p>
       <p className="max-w-sm text-sm text-muted-foreground">
-        Once this match is settled, the cryptographic proof TxLINE and this market's on-chain
+        Once this match is settled, the cryptographic proof TxLINE and this market&apos;s on-chain
         resolution are checked against — verifiable by anyone, not just us — shows up right here.
       </p>
     </div>
