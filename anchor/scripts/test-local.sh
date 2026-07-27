@@ -103,4 +103,21 @@ fi
 cp idls/mock_txline.json target/idl/mock_txline.json
 cp target/idl/verifibet.json ../idls/verifibet.json
 
+# `../idls/verifibet.json` above is a courtesy/reference copy (nothing
+# imports it — confirmed by grep). `../lib/solana/idl/verifibet.json` is
+# the one every real import site actually loads (`lib/solana/program.ts`,
+# every `scripts/*.ts` that talks to the chain) and was, until this line
+# was added, never kept in sync automatically — the 2026-07-19 deploy's
+# on-chain program drifted from this file for a week with nothing to catch
+# it (found and fixed manually during the 2026-07-26 v1.0.0 pass). Safe to
+# sync unconditionally here even though this whole script builds `verifibet`
+# with `--features test-mock-txline`: `build-idl.sh` above is invoked with
+# no `EXTRA_FEATURES`, so the IDL it just generated reflects the same
+# instruction/account shapes a plain production build would — the
+# test-mock-txline feature only ever changes which program `resolve_market`
+# CPIs into at runtime (a `declare_program!` selection), never verifibet's
+# own IDL surface.
+cp target/idl/verifibet.json ../lib/solana/idl/verifibet.json
+cp target/types/verifibet.ts ../lib/solana/idl/verifibet.ts
+
 anchor test --skip-build --provider.cluster localnet "$@"

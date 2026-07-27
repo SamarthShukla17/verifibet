@@ -15,6 +15,34 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 - IDL is published on-chain (`anchor idl init`) — introspectable directly
   from the program address, no local IDL file required.
 
+### Devnet by design, not by default
+
+The hackathon's own rules accept "a functional build or live testnet
+application" — devnet clears that bar outright, so staying there is a
+deliberate choice, not a shortcut taken for lack of time. Two independent
+reasons, either one sufficient on its own:
+
+- **Cost.** A mainnet deploy of this size (`verifibet.so` + the `Market`/
+  `Bet` PDA rent this program's five demo markets and ~20 bets alone
+  create) is real, non-refundable SOL for a judged build that never needs
+  to hold real value.
+- **Regulatory.** This is built solo from India. Real-money online gaming
+  is heavily restricted under India's Promotion and Regulation of Online
+  Gaming Act, 2025 — a mainnet deploy with real USDC stakes would make
+  this a real-money betting service, not a demo of one. Devnet — fake
+  SOL, a mock 6dp USDC mint (see "Plan notes" below) — sidesteps that
+  question entirely rather than relying on a legal read of where a
+  hackathon submission falls.
+
+Neither reason is a ceiling on the architecture. **Mainnet migration is a
+config change, not a rewrite**: `lib/config.ts` already carries TxLINE's
+real mainnet program ID, mint addresses, and RPC origin side-by-side with
+the devnet values this deploy actually uses (see `CLAUDE.md`'s
+"Addresses" section) — flipping `NEXT_PUBLIC_CLUSTER`, deploying
+`verifibet` to mainnet, and pointing `NEXT_PUBLIC_USDC_MINT` at real USDC
+is the entire migration. Nothing about `resolve_market`'s CPI, the PDA
+layout, or the settlement math is devnet-specific.
+
 ## Market rules
 
 - **Group stage** markets are a plain 1X2: home / draw / away.

@@ -22,11 +22,18 @@ the primary data source for match/odds data and settlement.
 - `components/` — `ui/` (shadcn primitives), `market/`, `bet/`, `layout/`,
   `providers/` (wallet adapter, query client, etc).
 - `idls/` (repo root) — generated VERIFIBET IDL JSON copied from
-  `anchor/target/idl/verifibet.json`, consumed by `lib/solana/` in the
-  frontend. **This is separate from `anchor/idls/`**, which holds *external*
-  program IDLs (e.g. TxLINE's) for the Rust `declare_program!` macro —
-  Anchor resolves that macro's IDL path relative to the program crate at
-  compile time, not the repo root, so it must live under `anchor/`.
+  `anchor/target/idl/verifibet.json`. **Not actually imported by anything**
+  (confirmed by grep, 2026-07-26) — it's a courtesy/reference copy that
+  `anchor/scripts/test-local.sh` keeps in sync automatically. The frontend's
+  real IDL is `lib/solana/idl/verifibet.json` (+ `.ts` type helper), a
+  separate copy every real import site (`lib/solana/program.ts`, every
+  chain-talking `scripts/*.ts`) actually loads — also auto-synced by
+  `test-local.sh` as of 2026-07-26, but wasn't before, and drifted from the
+  deployed program for about a week as a result (caught and fixed during
+  the v1.0.0 pass). **This is separate from `anchor/idls/`**, which holds
+  *external* program IDLs (e.g. TxLINE's) for the Rust `declare_program!`
+  macro — Anchor resolves that macro's IDL path relative to the program
+  crate at compile time, not the repo root, so it must live under `anchor/`.
 - `scripts/` — one-off/dev scripts (seed markets, airdrop, etc).
 - `demo-data/` — scripted match/odds data for `DEMO_MODE=1` playback.
 - `demo-assets/` — screen recordings captured at the end of each session.
@@ -111,7 +118,10 @@ VERIFIBET's own Anchor program ID goes in `NEXT_PUBLIC_PROGRAM_ID` /
   this machine — see "Known toolchain issue" below.
 - `cd anchor && ./scripts/build-idl.sh` — generate `target/idl/verifibet.json`
   + `target/types/verifibet.ts` (replaces `anchor build`'s own IDL step, see
-  below). Copy the result to the repo-root `idls/` dir afterward.
+  below). Copy the result to **both** `lib/solana/idl/` (the copy the app
+  actually imports — see "Monorepo layout") and the repo-root `idls/` dir
+  afterward — `anchor test`/`./scripts/test-local.sh` does both copies
+  automatically, this manual command doesn't.
 - `cd anchor && anchor keys sync` — sync `declare_id!`/Anchor.toml to the
   deploy keypair after a fresh build regenerates it.
 - `cd anchor && anchor test` — run Anchor tests (localnet).

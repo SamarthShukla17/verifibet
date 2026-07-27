@@ -91,6 +91,7 @@ import type { WalletContextState } from "@solana/wallet-adapter-react";
 
 import { deriveMarket, deriveBet, PROGRAM_ID } from "@/lib/solana/pda";
 import { getProgram, getReadOnlyProgram, BET_ACCOUNT_IDL_NAME, MARKET_ACCOUNT_IDL_NAME, placeBet } from "@/lib/solana/program";
+import { fetchMarketAccount } from "@/lib/solana/market";
 import { sendAndConfirm } from "@/lib/solana/sendTx";
 import { truncateToBytes, syncMarkets } from "@/scripts/sync-markets";
 import { buildKeeperContext } from "@/keeper/context";
@@ -338,6 +339,22 @@ async function placeVariedBets(connection: Connection, plan: DemoBetPlan[]): Pro
     const existing = await betClient.fetchNullable(bet);
     if (existing && existing.amount.toNumber() > 0) {
       console.log(`${p.wallet.padEnd(11)} fixture ${p.fixtureId} outcome ${p.outcome} — already placed, skipping`);
+      continue;
+    }
+
+    // A market that isn't Open can only reject place_bet (MarketNotOpen),
+    // and the point of this whole function's "already placed, skipping"
+    // check above is to make re-runs idempotent — a market that moved out
+    // of Open since an earlier run (resolved/voided by something outside
+    // this script) needs the same graceful skip, not a crash. Real,
+    // not hypothetical: the demo-range "pens" market went `Resolved`
+    // out-of-band before this check existed (2026-07-25) — see NOTES.md's
+    // "v1.0.0" entry.
+    const marketAccount = await fetchMarketAccount(p.fixtureId);
+    if (marketAccount && marketAccount.status !== "open") {
+      console.log(
+        `${p.wallet.padEnd(11)} fixture ${p.fixtureId} outcome ${p.outcome} — market is ${marketAccount.status}, not open, skipping`,
+      );
       continue;
     }
 
