@@ -49,3 +49,33 @@ export const NETWORK = CONFIG[CLUSTER];
  * Session 7's demo rehearsal.
  */
 export const CIRCLE_DEVNET_USDC_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
+
+/**
+ * GOLZ — a second, real devnet settlement token this project actually
+ * controls (classic SPL Token, 6 decimals, full on-chain Metaplex
+ * metadata — name/symbol/image/description — via `createV1`, not a bare
+ * unlabeled mint; see `scripts/create-golz-token.ts` for how it was
+ * created and `.golz-token.json`, gitignored, for the mint/metadata
+ * record). Mint authority is this deploy's own wallet (kept, not
+ * renounced — unlike Circle's USDC, GOLZ *is* ours to keep minting);
+ * freeze authority is renounced, the standard "can't be frozen after the
+ * fact" trust signal for a real token.
+ *
+ * `initialize_market`'s `usdc_mint` account has no hardcoded address
+ * check (see `anchor/programs/verifibet/src/instructions/
+ * initialize_market.rs`) — any classic SPL Token mint is accepted for a
+ * *new* market with zero program changes, and every downstream
+ * instruction already re-reads the mint from the market's own stored
+ * field (see `lib/solana/program.ts`), so betting/settlement on a
+ * GOLZ-denominated market works exactly like a USDC one. Existing
+ * markets stay on whatever mint they were created with — `Market.
+ * usdc_mint` can't change after `initialize_market`, same reasoning as
+ * `CIRCLE_DEVNET_USDC_MINT` above.
+ *
+ * Not the default for new markets (`scripts/sync-markets.ts` still
+ * resolves `CONFIG.devnet.usdcMint` unless `--usdc-mint` /
+ * `SyncMarketsOptions.usdcMint` is passed explicitly) — this constant
+ * just makes the mint a documented, importable address rather than a
+ * one-off string a future script would have to go re-derive.
+ */
+export const GOLZ_DEVNET_MINT = "G8T1dQo9RUKkrvAotDizvysoqAkcnc52UKCPC4AjawCV";

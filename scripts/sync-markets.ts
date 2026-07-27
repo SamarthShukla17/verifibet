@@ -275,6 +275,10 @@ function parseArgs(argv: string[]): SyncMarketsOptions {
     if (argv[i] === "--dry-run") options.dryRun = true;
     else if (argv[i] === "--fixture") options.fixtureId = Number(argv[++i]);
     else if (argv[i] === "--kickoff") options.kickoffOverrideTs = Number(argv[++i]);
+    // Any classic SPL Token mint works — see SyncMarketsOptions.usdcMint's
+    // doc comment and lib/config.ts's GOLZ_DEVNET_MINT for why this isn't
+    // restricted to USDC specifically.
+    else if (argv[i] === "--usdc-mint") options.usdcMint = new PublicKey(argv[++i]);
   }
   if (options.kickoffOverrideTs !== undefined && options.fixtureId === undefined) {
     throw new Error("--kickoff requires --fixture (demo override is single-fixture only)");
@@ -307,8 +311,10 @@ async function main() {
     provider,
   );
 
+  const resolvedUsdcMintForLog = options.usdcMint?.toBase58() ?? CONFIG.devnet.usdcMint;
   console.log(`keeper:  ${keeper.publicKey.toBase58()}`);
   console.log(`program: ${program.programId.toBase58()}`);
+  console.log(`mint:    ${resolvedUsdcMintForLog}`);
   console.log(`mode:    ${options.dryRun ? "dry-run" : "live"}${options.fixtureId ? `, fixture ${options.fixtureId}` : ""}`);
 
   const results = await syncMarkets(connection, program, keeper, options);
