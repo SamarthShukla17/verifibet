@@ -1,10 +1,10 @@
 /**
  * Idempotent fixtures -> markets sync — the thing that makes "auto-
- * generates markets for all 104 matches" (see CLAUDE.md) a real, running
- * capability rather than just a claim. For every World Cup fixture TxLINE
- * has, derive its Market PDA, skip it if the account already exists, else
- * `initialize_market`. Safe to run repeatedly: an already-synced fixture
- * is always a no-op.
+ * generates markets for all known matches" (see CLAUDE.md) a real,
+ * running capability rather than just a claim. For every International
+ * Friendlies fixture TxLINE has, derive its Market PDA, skip it if the
+ * account already exists, else `initialize_market`. Safe to run
+ * repeatedly: an already-synced fixture is always a no-op.
  *
  * `syncMarkets` is exported for reuse — the keeper (Session 6.4) imports
  * it directly rather than shelling out to this file, so it stays free of
@@ -12,28 +12,32 @@
  * narration) beyond the `main()` block at the bottom, which only runs
  * when this file is executed directly.
  *
+ * Originally this synced World Cup fixtures (`competitionId=72`) against a
+ * fixed, hardcoded tournament window (`TOURNAMENT_START_EPOCH_DAY`) — that
+ * window had, by the time of this rewrite, fully elapsed relative to
+ * devnet's real clock (every World Cup fixture long since kicked off,
+ * `KickoffPassed` on any resync attempt). Switched to Int'l Friendlies
+ * (`competitionId=430`, same free devnet Service Level 1 subscription, no
+ * TxL purchase needed — see CLAUDE.md's TxLINE section) specifically
+ * because TxLINE's devnet friendlies fixtures are genuinely upcoming
+ * (confirmed empirically: Sept/Oct/Nov 2026 kickoffs against today's real
+ * clock), so no start-window override is needed at all — omitting
+ * `startEpochDay` already returns exactly the right set.
+ *
  * ## "Upcoming" is TxLINE data's job to decide, not a client-side filter
  *
- * This fetches the *entire* known World Cup fixture window (see
- * `TOURNAMENT_START_EPOCH_DAY` below) rather than pre-filtering to
- * `StartTime > now`. `initialize_market`'s own on-chain constraint
- * (`kickoff_ts > Clock::get()?.unix_timestamp`, see
- * `anchor/programs/verifibet/src/instructions/initialize_market.rs`) is
- * already the authoritative "is this fixture still eligible" check — a
- * client-side wall-clock pre-filter would just make already-past
- * fixtures vanish silently instead of being honestly attempted and
- * reported as failed, which defeats the point of an idempotent sync
- * tool's summary table. Confirmed empirically, not theoretical: this
- * demo's entire fixture calendar (fixed 2026-06-28 through 2026-07-19
- * dates) has fully elapsed relative to devnet's real clock as of this
- * writing (`solana block-time` reads 2026-07-20, past even the Final's
- * kickoff) — a `StartTime > Date.now()` filter would silently return
- * zero fixtures and the sync would look like a no-op success instead of
- * showing the real `KickoffPassed` failures underneath. See NOTES.md for
- * the full real run's summary table.
+ * This still fetches whatever TxLINE returns for the competition rather
+ * than pre-filtering to `StartTime > now` itself. `initialize_market`'s
+ * own on-chain constraint (`kickoff_ts > Clock::get()?.unix_timestamp`,
+ * see `anchor/programs/verifibet/src/instructions/initialize_market.rs`)
+ * is already the authoritative "is this fixture still eligible" check —
+ * a client-side wall-clock pre-filter would just make an unexpectedly
+ * past fixture vanish silently instead of being honestly attempted and
+ * reported as a `KickoffPassed` failure, which defeats the point of an
+ * idempotent sync tool's summary table.
  *
  * `--fixture <id>` narrows a run to one fixture (still drawn from the
- * same full window, not just "upcoming" ones) — useful for backfilling a
+ * same full fetch, not just "upcoming" ones) — useful for backfilling a
  * single fixture without re-attempting every other already-decided one.
  */
 import { existsSync, readFileSync } from "node:fs";
@@ -59,18 +63,7 @@ import { deriveMarket } from "@/lib/solana/pda";
 import type { TxFixture } from "@/lib/txline/types";
 import verifibetIdl from "@/lib/solana/idl/verifibet.json";
 
-const WORLD_CUP_COMPETITION_ID = 72;
-
-/**
- * 2026-06-28 UTC (`floor(Date.UTC(2026, 5, 28) / 86_400_000 / 1000)`) —
- * the earliest date in TxLINE's confirmed World Cup coverage (Group
- * Stage kickoff; see `documentation/scores/schedule.mdx` in
- * `github.com/txodds/tx-on-chain` and NOTES.md). `/api/fixtures/snapshot`
- * returns fixtures "at or within 30 days after" `startEpochDay`, and the
- * full tournament (Group Stage through Final) spans 2026-06-28 through
- * 2026-07-19 — 21 days, comfortably inside that window in one call.
- */
-const TOURNAMENT_START_EPOCH_DAY = 20_632;
+const FRIENDLIES_COMPETITION_ID = 430;
 
 // Same MARKET_ACCOUNT quirk documented in scripts/devnet-e2e.ts and
 // anchor/tests/verifibet.ts: this build's IDL pipeline emits fully-
@@ -137,13 +130,13 @@ export interface SyncResult {
 
 /** Exported for `scripts/seed-bets.ts`, which needs the same real
  * fixture list to pick fresh (not-yet-marketed) fixtures from — kept as
- * one function rather than a second copy of the `TOURNAMENT_START_EPOCH_DAY`/
- * `txlineFetch` call. */
+ * one function rather than a second copy of the `txlineFetch` call. No
+ * `startEpochDay` — omitting it defaults to the real current day, which
+ * already returns the full upcoming Friendlies set (see module doc
+ * comment on why that's enough, unlike the old World Cup window). */
 export async function fetchTournamentFixtures(fixtureId?: number): Promise<TxFixture[]> {
   const { txlineFetch } = await import("@/lib/txline/http");
-  const res = await txlineFetch(
-    `/api/fixtures/snapshot?competitionId=${WORLD_CUP_COMPETITION_ID}&startEpochDay=${TOURNAMENT_START_EPOCH_DAY}`,
-  );
+  const res = await txlineFetch(`/api/fixtures/snapshot?competitionId=${FRIENDLIES_COMPETITION_ID}`);
   const fixtures = (await res.json()) as TxFixture[];
   return fixtureId === undefined ? fixtures : fixtures.filter((f) => f.FixtureId === fixtureId);
 }

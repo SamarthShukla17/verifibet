@@ -1,6 +1,7 @@
 /**
- * The in-memory source of truth for "what's happening with every World
- * Cup fixture right now" — one `Map<fixtureId, TrackedFixture>`, hydrated
+ * The in-memory source of truth for "what's happening with every
+ * International Friendlies fixture right now" — one
+ * `Map<fixtureId, TrackedFixture>`, hydrated
  * once from TxLINE's REST snapshot on boot and kept live from the SSE
  * pipeline (`lib/txline/stream.ts`) afterward. Both `app/api/fixtures`
  * (below) and the keeper (Session 6.4) read from the same singleton
@@ -37,19 +38,19 @@ import { isDemoFixtureId } from "@/lib/txline/demoScenarios";
 import type { Fixture, FixtureStatus, ScoreEvent } from "@/lib/types";
 import type { TxScore } from "@/lib/txline/types";
 
-const WORLD_CUP_COMPETITION_ID = 72;
-const ONE_DAY_SECONDS = 86_400;
-
 /**
- * 2026-06-28 UTC — same tournament-window constant as
- * `scripts/sync-markets.ts`'s `TOURNAMENT_START_EPOCH_DAY` (see that
- * file's doc comment for the derivation). Kept as a separate literal
- * here rather than importing it, since `scripts/sync-markets.ts` doesn't
+ * TxLINE `competitionId` for International Friendlies — same constant as
+ * `scripts/sync-markets.ts`'s `FRIENDLIES_COMPETITION_ID` (see that
+ * file's doc comment for how this was confirmed empirically, and why no
+ * `startEpochDay`/`from` override is needed alongside it: unlike the old
+ * World Cup window, these fixtures are genuinely upcoming under TxLINE's
+ * default "real current day" behavior). Kept as a separate literal here
+ * rather than importing it, since `scripts/sync-markets.ts` doesn't
  * export it and pulling a script-only constant into a server module
  * would be a strange dependency direction — if this ever needs to change,
  * change both.
  */
-const TOURNAMENT_START_EPOCH_DAY = 20_632;
+const FRIENDLIES_COMPETITION_ID = 430;
 
 /** How long a `LIVE` fixture can go without a stream event before the
  * self-healing REST fallback kicks in. */
@@ -130,8 +131,7 @@ export class StatusTracker extends EventEmitter {
       list = fixtures;
     } else {
       const resilient = await getFixturesResilient({
-        competition: WORLD_CUP_COMPETITION_ID,
-        from: TOURNAMENT_START_EPOCH_DAY * ONE_DAY_SECONDS,
+        competition: FRIENDLIES_COMPETITION_ID,
       });
       this.staleFixtures = resilient.stale;
       list = resilient.fixtures.map((raw) => {
