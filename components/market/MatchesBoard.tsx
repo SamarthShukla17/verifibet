@@ -8,6 +8,7 @@ import { LiveMatchCard } from "@/components/market/LiveMatchCard";
 import { BetSlip, type BetSlipSelection } from "@/components/bet/BetSlip";
 import { Button } from "@/components/ui/button";
 import { useMarketAccount } from "@/lib/hooks/useMarketAccount";
+import { useMarketPools } from "@/lib/hooks/useMarketPools";
 import { usePlaceBet } from "@/lib/hooks/usePlaceBet";
 import { marketStatusFromFixtureStatus, type OrganizedMatches, type MarketEntry } from "@/lib/market";
 import type { MarketStatus, Outcome } from "@/lib/types";
@@ -22,10 +23,12 @@ interface Selection {
 
 function EntryCard({
   entry,
+  totalPoolBaseUnits,
   selectedOutcome,
   onSelectOutcome,
 }: {
   entry: MarketEntry;
+  totalPoolBaseUnits: bigint;
   selectedOutcome: Outcome | null;
   onSelectOutcome: (outcome: Outcome, odds: number) => void;
 }) {
@@ -34,6 +37,7 @@ function EntryCard({
       <LiveMatchCard
         fixture={entry.fixture}
         marketStatus={entry.marketStatus}
+        totalPoolBaseUnits={totalPoolBaseUnits}
         selectedOutcome={selectedOutcome}
         onSelectOutcome={onSelectOutcome}
       />
@@ -45,7 +49,7 @@ function EntryCard({
       fixture={entry.fixture}
       odds={null}
       marketStatus={entry.marketStatus}
-      totalPoolBaseUnits={0n}
+      totalPoolBaseUnits={totalPoolBaseUnits}
       selectedOutcome={selectedOutcome}
       onSelectOutcome={onSelectOutcome}
     />
@@ -54,10 +58,12 @@ function EntryCard({
 
 function EntryGrid({
   entries,
+  pools,
   selection,
   onSelect,
 }: {
   entries: MarketEntry[];
+  pools: Map<number, bigint>;
   selection: Selection | null;
   onSelect: (fixtureId: number, outcome: Outcome, odds: number) => void;
 }) {
@@ -67,6 +73,7 @@ function EntryGrid({
         <EntryCard
           key={entry.fixture.fixtureId}
           entry={entry}
+          totalPoolBaseUnits={pools.get(entry.fixture.fixtureId) ?? 0n}
           selectedOutcome={selection?.fixtureId === entry.fixture.fixtureId ? selection.outcome : null}
           onSelectOutcome={(outcome, odds) => onSelect(entry.fixture.fixtureId, outcome, odds)}
         />
@@ -107,17 +114,18 @@ export function MatchesBoard({ organized }: MatchesBoardProps) {
         }
       : null;
 
-  // Fetched only for the currently-selected fixture (`0` — a deliberate
-  // no-op fixtureId, see useMarketAccount's own doc comment — until
-  // something's picked), not for every card in the grid: this list view
-  // otherwise has no per-fixture on-chain reads at all (see EntryCard's
-  // `totalPoolBaseUnits={0n}` above), so this is the one place real
-  // pools/status/usdc_mint enter the picture, exactly when the slip
-  // actually needs them.
+  // Per-outcome pools for the bet slip's currently-selected fixture only
+  // (`0` — a deliberate no-op fixtureId, see useMarketAccount's own doc
+  // comment — until something's picked); status/usdc_mint also come from
+  // here, since the slip needs both. Every card's own pool *total* (all
+  // three outcomes summed) comes from `cardPools` below instead — one
+  // batched read covering every fixture on the page, not a per-card RPC
+  // call.
   const { market, refresh: refreshMarket, applyOptimisticBump } = useMarketAccount(
     selection?.fixtureId ?? 0,
   );
   const { balance, balanceLoading, placeBet } = usePlaceBet(market, applyOptimisticBump, refreshMarket);
+  const cardPools = useMarketPools();
 
   const pools: [bigint, bigint, bigint] =
     market?.synced && market.pools
@@ -166,7 +174,7 @@ export function MatchesBoard({ organized }: MatchesBoardProps) {
                 <h2 className="mb-3 font-display text-sm font-semibold uppercase tracking-wide text-destructive">
                   Live Now
                 </h2>
-                <EntryGrid entries={organized.live} selection={selection} onSelect={handleSelect} />
+                <EntryGrid entries={organized.live} pools={cardPools} selection={selection} onSelect={handleSelect} />
               </section>
             )}
 
@@ -175,7 +183,7 @@ export function MatchesBoard({ organized }: MatchesBoardProps) {
                 <h2 className="sticky top-16 z-20 -mx-4 mb-3 border-b border-border bg-background/95 px-4 py-2 font-display text-sm font-semibold text-foreground backdrop-blur sm:-mx-6 sm:px-6">
                   {group.label}
                 </h2>
-                <EntryGrid entries={group.entries} selection={selection} onSelect={handleSelect} />
+                <EntryGrid entries={group.entries} pools={cardPools} selection={selection} onSelect={handleSelect} />
               </section>
             ))}
 
@@ -189,7 +197,7 @@ export function MatchesBoard({ organized }: MatchesBoardProps) {
                   />
                 </summary>
                 <div className="border-t border-border p-4">
-                  <EntryGrid entries={organized.earlier} selection={selection} onSelect={handleSelect} />
+                  <EntryGrid entries={organized.earlier} pools={cardPools} selection={selection} onSelect={handleSelect} />
                 </div>
               </details>
             )}

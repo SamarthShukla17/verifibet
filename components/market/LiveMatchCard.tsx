@@ -8,6 +8,8 @@ import type { TrackedFixture } from "@/lib/txline/statusTracker";
 export interface LiveMatchCardProps {
   fixture: TrackedFixture;
   marketStatus: MarketStatus;
+  /** USDC base units — see `MatchCardProps.totalPoolBaseUnits`. */
+  totalPoolBaseUnits: bigint;
   selectedOutcome: Outcome | null;
   onSelectOutcome: (outcome: Outcome, odds: number) => void;
 }
@@ -24,6 +26,7 @@ export interface LiveMatchCardProps {
 export function LiveMatchCard({
   fixture,
   marketStatus,
+  totalPoolBaseUnits,
   selectedOutcome,
   onSelectOutcome,
 }: LiveMatchCardProps) {
@@ -36,7 +39,7 @@ export function LiveMatchCard({
       odds={live.odds}
       marketStatus={marketStatus}
       live={{ minute }}
-      totalPoolBaseUnits={0n}
+      totalPoolBaseUnits={totalPoolBaseUnits}
       selectedOutcome={selectedOutcome}
       onSelectOutcome={onSelectOutcome}
     />

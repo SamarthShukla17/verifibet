@@ -77,6 +77,34 @@ export async function fetchMarketAccount(fixtureId: number): Promise<MarketAccou
   };
 }
 
+export interface MarketPoolSummary {
+  fixtureId: number;
+  /** USDC base units — see `MarketAccountData.pools`'s doc comment on why
+   * this crosses the server/client boundary as a decimal string. */
+  totalPool: string;
+}
+
+/**
+ * Every synced market's `fixtureId`/`totalPool`, in one RPC call —
+ * `program.account.<Market>.all()` applies Anchor's own discriminator
+ * `memcmp` filter and decodes every matching account server-side, so this
+ * is one `getProgramAccounts` regardless of how many markets exist, not
+ * `fetchMarketAccount` called once per fixture. Backs `/api/markets`,
+ * which the matches list polls to show real pool totals on each card
+ * instead of the `0` a per-card on-chain read would otherwise cost.
+ */
+export async function fetchAllMarketPools(): Promise<MarketPoolSummary[]> {
+  const program = await getReadOnlyProgram();
+  const accounts = await (
+    program.account as Record<string, { all(): Promise<{ account: { fixtureId: BN; totalPool: BN } }[]> }>
+  )[MARKET_ACCOUNT_IDL_NAME].all();
+
+  return accounts.map(({ account }) => ({
+    fixtureId: account.fixtureId.toNumber(),
+    totalPool: account.totalPool.toString(),
+  }));
+}
+
 /** Distinct bettors on a market — 0 if the market itself doesn't exist
  * (nothing to count against a PDA that was never derived from a real
  * account). Uses `dataSlice` so the RPC only ever returns the 32-byte
