@@ -1,9 +1,9 @@
 # VERIFIBET
 
-Solana parimutuel prediction market for the 2026 World Cup. Built solo for the
-TxODDS "Prediction Markets and Settlement" hackathon (deadline 2026-07-19).
-Judged on deployed build + demo video. TxLINE (TxODDS's Solana data feed) is
-the primary data source for match/odds data and settlement.
+Solana parimutuel prediction market for the 2026 World Cup, settled against
+TxODDS's on-chain data feed (TxLINE). Started as a solo entry for TxODDS's
+"Prediction Markets and Settlement" hackathon; now a standalone project.
+TxLINE is the primary data source for match/odds data and settlement.
 
 ## Monorepo layout
 
@@ -43,7 +43,8 @@ the primary data source for match/odds data and settlement.
 
 Default cluster is **devnet**, selected via `NEXT_PUBLIC_CLUSTER` in
 `lib/config.ts` (`CLUSTER`/`NETWORK` exports). Mainnet config exists in the
-same file but is not the target for the hackathon deadline.
+same file but is not the current deploy target (see README's "Devnet, by
+design").
 
 ## Addresses (from `lib/config.ts`)
 

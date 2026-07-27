@@ -22,10 +22,11 @@ of an oracle any single party controls.
 
 ![Connect wallet, browse a match, place a parimutuel bet, watch it settle, check the portfolio, share a receipt](demo-assets/phase5-exit-connect-browse-bet-portfolio-share.gif)
 
-Connect → browse a match → place a bet → the keeper auto-locks and
-auto-resolves it against TxLINE with no human in the loop → claim →
-verified, shareable receipt. `DEMO_RUNBOOK.md` is the exact rehearsed
-click path this was recorded from.
+Connect → browse a match → place a bet → keeper logic runs the full
+lock → resolve → void path against TxLINE autonomously — currently
+triggered by an operator rather than a hosted daemon (see Feature 6 below)
+→ claim → verified, shareable receipt. `DEMO_RUNBOOK.md` is the exact
+rehearsed click path this was recorded from.
 
 > This is the real recorded take from the project's "Phase 5 exit"
 > session (~32s), not a fresh `gifski`-from-video export — this session
@@ -58,9 +59,13 @@ click path this was recorded from.
 5. **Non-custodial escrow.** Each market's vault is the canonical
    associated token account of its own `Market` PDA — there is no admin
    sweep instruction and no way to redirect funds to a different account.
-6. **An autonomous keeper** polls TxLINE, locks markets at kickoff,
-   resolves them at full-time, and voids abandoned fixtures — all without
-   a human clicking anything, once it's running.
+6. **Keeper logic runs the full lock → resolve → void path
+   autonomously**, once triggered — polls TxLINE, locks markets at
+   kickoff, resolves them at full-time via the real Merkle-proof CPI, and
+   voids abandoned fixtures. A hosted daemon was scoped out pre-launch;
+   today it's triggered by an operator (`pnpm keeper:resolve --fixture
+   <id>`), not a background process — see
+   [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §1/§7.
 7. **Devnet by design, mainnet by config flip.** Same program, same CPI,
    same PDA layout — going to mainnet is swapping `NEXT_PUBLIC_CLUSTER`
    and a mint address, not a rewrite (see "Devnet, by design" below).
@@ -202,24 +207,20 @@ kickoff → goal → full-time → auto-resolve → claim → receipt), see
 
 ## Devnet, by design
 
-The hackathon's own rules accept "a functional build or live testnet
-application" — devnet clears that outright. Two independent reasons,
-either sufficient alone: **cost** (this program's `Market`/`Bet` PDA rent
-is real, non-refundable SOL for a judged build that never needs to hold
-real value), and **regulatory** (built solo from India, where real-money
-online gaming is heavily restricted — devnet sidesteps that question
-entirely rather than relying on a legal read of where a hackathon
-submission falls). Neither reason caps the architecture: `lib/config.ts`
-already carries TxLINE's real mainnet addresses side-by-side with the
-devnet ones this deploy uses — flipping `NEXT_PUBLIC_CLUSTER`, deploying
-`verifibet` to mainnet, and pointing at real USDC is the entire migration.
+Two independent reasons for staying on devnet, either sufficient alone:
+**cost** (this program's `Market`/`Bet` PDA rent is real, non-refundable
+SOL for a project that doesn't need to hold real value yet), and
+**regulatory** (built solo from India, where real-money online gaming is
+heavily restricted — devnet sidesteps that question entirely rather than
+relying on a legal read of a gray area). Neither reason caps the
+architecture: `lib/config.ts` already carries TxLINE's real mainnet
+addresses side-by-side with the devnet ones this deploy uses — flipping
+`NEXT_PUBLIC_CLUSTER`, deploying `verifibet` to mainnet, and pointing at
+real USDC is the entire migration.
 
-## Hackathon
+## TxLINE integration
 
-Built for TxODDS's **"Prediction Markets and Settlement"** hackathon
-(judging window 2026-07-20 – 2026-07-29). Built **solo**.
-
-What TxLINE actually powers, end to end — not just "integrated with," but
+Built **solo**. What TxLINE actually powers, end to end — not just "integrated with," but
 the specific surfaces this program depends on for every real feature (full
 detail + file locations in
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §3):

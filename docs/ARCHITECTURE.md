@@ -1,6 +1,6 @@
 # VERIFIBET architecture
 
-A 3-minute skim for judges. VERIFIBET is a Solana parimutuel prediction
+A 3-minute skim of the system. VERIFIBET is a Solana parimutuel prediction
 market for the 2026 World Cup, settled against TxODDS's on-chain data feed
 (TxLINE) rather than an oracle any single party controls.
 
