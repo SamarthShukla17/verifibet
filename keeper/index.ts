@@ -51,10 +51,23 @@ import { lockMarketJob, syncMarketsJob } from "@/keeper/jobs";
 import { resolveFixture } from "@/keeper/resolver";
 import { isVoidCandidate, voidMarketJob } from "@/keeper/void";
 import { pollLiveDemoFixtureStatuses, resolveDemoFixtureJob } from "@/keeper/demoResolver";
+import { telegramAlert } from "@/keeper/alerts";
 
 const TICK_MS = 60_000;
 const SYNC_INTERVAL_MS = 60 * 60 * 1000; // hourly
 const HEALTH_PORT = 8787;
+
+/** Below this, the keeper can build every transaction correctly and still
+ * never land one — devnet fees are small, but a keeper acting on every
+ * finishing fixture across a live tournament with no auto-top-up adds up.
+ * Judges may open the app Jul 20-29 (see NOTES.md's "v1.0.0 hackathon
+ * pass" entry), so this needs a human to notice well before the wallet
+ * actually hits zero. */
+const LOW_SOL_THRESHOLD = 0.3;
+/** Re-alerting every 60s tick while the balance stays low would just spam
+ * Telegram for a condition that isn't going to un-happen on its own —
+ * once every 6h is often enough for a human to act without being noise. */
+const LOW_SOL_ALERT_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 
 /** Much shorter than `TICK_MS` — this is the "keeper resolves within
  * 60s" polling loop for demo-range fixtures (Phase 7 exit), see
@@ -114,6 +127,7 @@ async function main() {
   let processing = false;
   let lastSyncTs = 0;
   let lastTick = Date.now();
+  let lastLowBalanceAlertAt = 0;
 
   function enqueue(type: JobType, fixtureId: number): void {
     const id = `${type}:${fixtureId}`;
@@ -201,6 +215,29 @@ async function main() {
     }
   }
 
+  /** Checked every tick — cheap (one RPC call) compared to the 60s
+   * cadence. Alerts at most once per `LOW_SOL_ALERT_COOLDOWN_MS` so a
+   * balance that stays under the threshold across many ticks doesn't spam
+   * Telegram once per tick. */
+  async function checkBalance(): Promise<void> {
+    try {
+      const lamports = await ctx.connection.getBalance(ctx.keeper.publicKey);
+      const sol = lamports / 1_000_000_000;
+      if (sol >= LOW_SOL_THRESHOLD) return;
+      const now = Date.now();
+      if (now - lastLowBalanceAlertAt < LOW_SOL_ALERT_COOLDOWN_MS) return;
+      lastLowBalanceAlertAt = now;
+      logger.warn({ solBalance: sol, address: ctx.keeper.publicKey.toBase58() }, "keeper SOL balance is low");
+      await telegramAlert(
+        logger,
+        `VERIFIBET keeper: SOL balance is ${sol.toFixed(4)} (below ${LOW_SOL_THRESHOLD}) on ${ctx.keeper.publicKey.toBase58()}. Top up devnet SOL or resolve_market/lock_market/void_market will start failing to land.`,
+      );
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      logger.warn({ error }, "balance check failed");
+    }
+  }
+
   /** Phase 7 exit: the demo-range half of "kickoff auto-locks, FT
    * auto-resolves" — see `keeper/demoResolver.ts`'s own doc comment for
    * why this polls the running app over HTTP instead of riding this
@@ -222,11 +259,13 @@ async function main() {
 
   await runSyncMarkets();
   reconcile();
+  void checkBalance();
 
   const tickTimer = setInterval(() => {
     lastTick = Date.now();
     if (lastTick - lastSyncTs >= SYNC_INTERVAL_MS) void runSyncMarkets();
     reconcile();
+    void checkBalance();
     void processQueue();
   }, TICK_MS);
 

@@ -3,10 +3,23 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 ## Live
 
 - App: https://verifibet.vercel.app (Vercel, devnet)
-- No hosted keeper / healthz endpoint — resolution runs through the
-  manual backfill CLI (`pnpm keeper:resolve --fixture <id>`), not a
-  daemon. See NOTES.md's "deploy" entry for why and what that means for
-  `/api/stream`'s SSE behavior in production.
+- No hosted *keeper process* — resolution runs through the manual backfill
+  CLI (`pnpm keeper:resolve --fixture <id>`), not a daemon. See NOTES.md's
+  "deploy" entry for why and what that means for `/api/stream`'s SSE
+  behavior in production.
+- **Monitoring** (added for the judging window, 2026-07-20 through
+  2026-07-29 — see NOTES.md's "monitoring" entry for full detail):
+  - `/api/healthz` — app-level liveness (RPC + Upstash reachability),
+    polled by UptimeRobot alongside the app URL itself, both alerting
+    paarthsamarth@gmail.com on downtime.
+  - A Helius (devnet, free tier) webhook on the program address pushes
+    every on-chain instruction into the same Upstash list `/keeper`
+    already reads — the one source of real-time on-chain activity the
+    deployed app has, since there's no hosted keeper to log its own.
+  - The local keeper process (`pnpm keeper`) alerts a dedicated Telegram
+    bot (`@verifibet_alerts_bot`) on resolution failure, CPI-validation
+    mismatch, or its own SOL balance dropping below 0.3 — see
+    `keeper/alerts.ts`.
 
 ## Deployed program (devnet)
 

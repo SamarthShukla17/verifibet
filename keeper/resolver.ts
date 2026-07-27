@@ -73,6 +73,7 @@ import { fetchProof } from "@/lib/txline/proofs";
 import type { TxScore } from "@/lib/txline/types";
 import type { FixtureStatus, Outcome } from "@/lib/types";
 import { buildKeeperContext } from "@/keeper/context";
+import { telegramAlert } from "@/keeper/alerts";
 import { dailyScoresRootsPda, fetchMarketStatus, formatTxError, type KeeperContext } from "@/keeper/jobs";
 import { buildLogger } from "@/keeper/logger";
 import { fetchTournamentFixtures } from "@/scripts/sync-markets";
@@ -232,27 +233,6 @@ function tryParseAnchorError(err: unknown): AnchorError | null {
 function receiptUrl(fixtureId: number): string {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   return `${base}/receipts/${fixtureId}`;
-}
-
-async function telegramAlert(logger: pino.Logger, text: string): Promise<void> {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) {
-    logger.warn({ text }, "TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID not configured — alert not sent, see text above");
-    return;
-  }
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text }),
-    });
-    if (!res.ok) {
-      logger.error({ status: res.status, body: await res.text() }, "Telegram alert API call failed");
-    }
-  } catch (err) {
-    logger.error({ error: err instanceof Error ? err.message : String(err) }, "Telegram alert threw");
-  }
 }
 
 /**
