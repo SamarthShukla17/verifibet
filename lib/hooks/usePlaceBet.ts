@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { toast } from "sonner";
 import { useBalances } from "@/lib/hooks/useBalances";
 import type { MarketAccountResponse } from "@/lib/hooks/useMarketAccount";
 import { parseUsdc } from "@/lib/format";
@@ -49,18 +50,41 @@ export function usePlaceBet(
 
   const placeBet = useCallback(
     async (fixtureId: number, outcome: Outcome, amountInput: string) => {
-      if (!wallet.publicKey) throw new Error("wallet not connected");
-      if (!market?.synced) throw new Error("market not synced on-chain yet");
+      // Everything above `sendAndConfirm` runs before its own toast
+      // lifecycle starts — `sendAndConfirm` is the only place in this app
+      // that shows a toast, so a throw here would otherwise reach
+      // BetSlip's catch block with zero user-facing feedback at all (no
+      // toast, no console line, the slip just silently resets to
+      // "edit"). Every early-return below gets its own toast +
+      // console.error for exactly that reason.
+      if (!wallet.publicKey) {
+        toast.error("Connect your wallet to place a bet");
+        throw new Error("wallet not connected");
+      }
+      if (!market?.synced) {
+        toast.error("Market hasn't synced on-chain yet — try again in a moment");
+        throw new Error("market not synced on-chain yet");
+      }
 
       const amountBaseUnits = parseUsdc(amountInput);
-      if (amountBaseUnits === null || amountBaseUnits <= 0n) throw new Error("invalid bet amount");
+      if (amountBaseUnits === null || amountBaseUnits <= 0n) {
+        toast.error("Enter a valid bet amount");
+        throw new Error("invalid bet amount");
+      }
 
-      const program = await getProgram(connection, wallet);
-      const tx = await placeBetTx(program, {
-        fixtureId: BigInt(fixtureId),
-        outcome,
-        amountBaseUnits,
-      });
+      let tx;
+      try {
+        const program = await getProgram(connection, wallet);
+        tx = await placeBetTx(program, {
+          fixtureId: BigInt(fixtureId),
+          outcome,
+          amountBaseUnits,
+        });
+      } catch (error) {
+        console.error("Failed to build place_bet transaction", error);
+        toast.error("Couldn't prepare your bet — please try again");
+        throw error;
+      }
 
       const signature = await sendAndConfirm(connection, wallet, tx, { label: "Placing bet" });
 

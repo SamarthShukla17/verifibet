@@ -65,10 +65,11 @@ export interface BetSlipProps {
   amount: string;
   onAmountChange: (value: string) => void;
   /** Builds + sends the real `place_bet` transaction and resolves with its
-   * signature. Rejects on failure or wallet rejection — the caller's
-   * `sendAndConfirm` call already shows a human-readable toast for that,
-   * so this component just falls back to the editable state rather than
-   * showing a second error of its own. */
+   * signature. Rejects on failure or wallet rejection — `usePlaceBet`
+   * already shows a human-readable toast for every failure path (both
+   * pre-send validation and the `sendAndConfirm` call itself), so this
+   * component just falls back to the editable state rather than showing a
+   * second error of its own. */
   onSubmit: () => Promise<string>;
   className?: string;
 }
