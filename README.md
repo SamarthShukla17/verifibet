@@ -1,91 +1,157 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+<p align="center">
+  <img src="demo-assets/banner-receipt.jpg" alt="VERIFIBET verified receipt — Brazil 1-2 Norway, Merkle proof reconstructed locally, cannot be forged" width="820">
+</p>
 
-## Live
+# VERIFIBET
 
-- App: https://verifibet.vercel.app (Vercel, devnet)
-- No hosted *keeper process* — resolution runs through the manual backfill
-  CLI (`pnpm keeper:resolve --fixture <id>`), not a daemon. See NOTES.md's
-  "deploy" entry for why and what that means for `/api/stream`'s SSE
-  behavior in production.
-- **Monitoring** (added for the judging window, 2026-07-20 through
-  2026-07-29 — see NOTES.md's "monitoring" entry for full detail):
-  - `/api/healthz` — app-level liveness (RPC + Upstash reachability),
-    polled by UptimeRobot alongside the app URL itself, both alerting
-    paarthsamarth@gmail.com on downtime.
-  - A Helius (devnet, free tier) webhook on the program address pushes
-    every on-chain instruction into the same Upstash list `/keeper`
-    already reads — the one source of real-time on-chain activity the
-    deployed app has, since there's no hosted keeper to log its own.
-  - The local keeper process (`pnpm keeper`) alerts a dedicated Telegram
-    bot (`@verifibet_alerts_bot`) on resolution failure, CPI-validation
-    mismatch, or its own SOL balance dropping below 0.3 — see
-    `keeper/alerts.ts`.
+A Solana parimutuel prediction market for the 2026 World Cup, settled
+against [TxODDS](https://txodds.com)'s on-chain data feed (TxLINE) instead
+of an oracle any single party controls.
 
-## Deployed program (devnet)
+[![CI](https://github.com/SamarthShukla17/verifibet/actions/workflows/anchor.yml/badge.svg)](https://github.com/SamarthShukla17/verifibet/actions/workflows/anchor.yml)
+[![Program](https://img.shields.io/badge/devnet%20program-CCrrc5c...Rnd2PMw-9945FF?logo=solana&logoColor=white)](https://explorer.solana.com/address/CCrrc5cdohor1EGGFkrQ3yKUS3zU9tnU2uzxWRnd2PMw?cluster=devnet)
+[![Live](https://img.shields.io/badge/live-verifibet.vercel.app-000000?logo=vercel&logoColor=white)](https://verifibet.vercel.app)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-- Program ID: `CCrrc5cdohor1EGGFkrQ3yKUS3zU9tnU2uzxWRnd2PMw`
-- Explorer: https://explorer.solana.com/address/CCrrc5cdohor1EGGFkrQ3yKUS3zU9tnU2uzxWRnd2PMw?cluster=devnet
-- IDL is published on-chain (`anchor idl init`) — introspectable directly
-  from the program address, no local IDL file required.
+**Quick links:** [Live app](https://verifibet.vercel.app) ·
+[Demo GIF](demo-assets/phase5-exit-connect-browse-bet-portfolio-share.gif) ·
+[Example receipt](https://verifibet.vercel.app/receipts/18187298) ·
+[Architecture](docs/ARCHITECTURE.md)
 
-### Devnet by design, not by default
+## The core loop
 
-The hackathon's own rules accept "a functional build or live testnet
-application" — devnet clears that bar outright, so staying there is a
-deliberate choice, not a shortcut taken for lack of time. Two independent
-reasons, either one sufficient on its own:
+![Connect wallet, browse a match, place a parimutuel bet, watch it settle, check the portfolio, share a receipt](demo-assets/phase5-exit-connect-browse-bet-portfolio-share.gif)
 
-- **Cost.** A mainnet deploy of this size (`verifibet.so` + the `Market`/
-  `Bet` PDA rent this program's five demo markets and ~20 bets alone
-  create) is real, non-refundable SOL for a judged build that never needs
-  to hold real value.
-- **Regulatory.** This is built solo from India. Real-money online gaming
-  is heavily restricted under India's Promotion and Regulation of Online
-  Gaming Act, 2025 — a mainnet deploy with real USDC stakes would make
-  this a real-money betting service, not a demo of one. Devnet — fake
-  SOL, a mock 6dp USDC mint (see "Plan notes" below) — sidesteps that
-  question entirely rather than relying on a legal read of where a
-  hackathon submission falls.
+Connect → browse a match → place a bet → the keeper auto-locks and
+auto-resolves it against TxLINE with no human in the loop → claim →
+verified, shareable receipt. `DEMO_RUNBOOK.md` is the exact rehearsed
+click path this was recorded from.
 
-Neither reason is a ceiling on the architecture. **Mainnet migration is a
-config change, not a rewrite**: `lib/config.ts` already carries TxLINE's
-real mainnet program ID, mint addresses, and RPC origin side-by-side with
-the devnet values this deploy actually uses (see `CLAUDE.md`'s
-"Addresses" section) — flipping `NEXT_PUBLIC_CLUSTER`, deploying
-`verifibet` to mainnet, and pointing `NEXT_PUBLIC_USDC_MINT` at real USDC
-is the entire migration. Nothing about `resolve_market`'s CPI, the PDA
-layout, or the settlement math is devnet-specific.
+> This is the real recorded take from the project's "Phase 5 exit"
+> session (~32s), not a fresh `gifski`-from-video export — this session
+> had no raw screen-capture footage and no `gifski` binary or network
+> access to install one, so the most complete existing recording was
+> reused rather than fabricated. See `DEMO_RUNBOOK.md` to record a fresh
+> one (`mcp__claude-in-chrome__gif_creator` or any screen recorder, target
+> ≤2 minutes, export to `demo-assets/`).
 
-## Market rules
+## Features
 
-- **Group stage** markets are a plain 1X2: home / draw / away.
-- **Knockout stage** markets (Round of 32 through the Final, including the
-  3rd-place playoff) are **two-outcome, "who advances"** — home / away
-  only, no Draw. A knockout match always produces a winner: if the score
-  is level after 90 minutes, extra time and then a penalty shootout decide
-  who advances, so a draw is never a real settlement outcome for one of
-  these markets. This is enforced in exactly one place —
-  `lib/txline/normalize.ts#deriveOutcome` — and the frontend mirrors it by
-  never offering a Draw tile on a knockout fixture's market
-  (`lib/market.ts#isKnockoutStage`). See `SECURITY.md`'s "Off-chain
-  invariant: knockout markets never resolve to a draw" for the full
-  reasoning and the golden test vector (Paraguay 4-3 Germany on penalties,
-  after a 1-1 FT+ET draw) that pins it down.
+1. **Settlement is provably honest, not just promised.** `resolve_market`
+   cannot mark a market `Resolved` unless a real Merkle-proof CPI into
+   TxLINE's own `validate_stat` returns `Ok(())` first — there is no code
+   path that skips it. Every receipt ships the proof chain and a
+   **"Verify in your browser"** button that recomputes the Merkle root
+   client-side against TxLINE's published data. See
+   [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §2 and §7.
+2. **Parimutuel markets, no house edge.** Group stage is a plain 1X2;
+   knockout markets are two-outcome ("who advances," penalties included —
+   a knockout match never really draws). Payout is exactly
+   `stake * total_pool / winning_pool`, floored — every winning dollar
+   gets its proportional share, nothing skimmed.
+3. **Live odds and scores over SSE**, fed by TxLINE's real streams and
+   fanned out to every connected browser through the app's own
+   `/api/stream` route.
+4. **Public, shareable settlement receipts** at `/receipts/<fixtureId>` —
+   real final score, real resolve transaction, real Merkle proof, no
+   login required to view one.
+5. **Non-custodial escrow.** Each market's vault is the canonical
+   associated token account of its own `Market` PDA — there is no admin
+   sweep instruction and no way to redirect funds to a different account.
+6. **An autonomous keeper** polls TxLINE, locks markets at kickoff,
+   resolves them at full-time, and voids abandoned fixtures — all without
+   a human clicking anything, once it's running.
+7. **Devnet by design, mainnet by config flip.** Same program, same CPI,
+   same PDA layout — going to mainnet is swapping `NEXT_PUBLIC_CLUSTER`
+   and a mint address, not a rewrite (see "Devnet, by design" below).
 
-## Plan notes
+## Local setup
 
-- Devnet demo uses a 6dp mock USDC mint (`NEXT_PUBLIC_USDC_MINT` in
-  `.env.local`), not Circle's real devnet USDC — Circle's faucet
-  (faucet.circle.com) is reCAPTCHA-gated (can't be scripted) and caps
-  requests at 20 USDC per network every 2 hours, nowhere near enough to fund
-  betting tests. The program pins whatever mint each market is initialized
-  with, so this is a drop-in swap and nothing else changes.
+Verified end-to-end in a genuinely fresh `git clone` while writing this
+README — every command below actually ran, in order, on a clean checkout.
 
-## Reproducing the demo environment
+```bash
+git clone https://github.com/SamarthShukla17/verifibet.git
+cd verifibet
+pnpm install
+cp .env.local.example .env.local   # fill in TXLINE_*, KEEPER_SECRET_KEY, UPSTASH_*, ...
+pnpm dev                           # http://localhost:3000
+```
 
-Judges (or anyone) can populate a live, walkable demo of the deployed
-program with one command — real markets, real varied bets, real settled
-receipts, no manual setup:
+`pnpm dev` boots clean and serves real TxLINE data with no further setup
+(confirmed: `/matches` and `/api/healthz` both 200, fixtures hydrated from
+the live feed).
+
+### Anchor program tests
+
+```bash
+cd anchor
+pnpm install          # anchor/ has its own package.json — it is NOT a pnpm
+                       # workspace member of the repo root, so the root
+                       # `pnpm install` above never touches it
+./scripts/test-local.sh
+```
+
+This is the command that's actually verified to work, and it's
+deliberately **not** `anchor test` on its own — two real reasons, both
+also documented in `CLAUDE.md`:
+
+- Plain `anchor test` on a fresh clone fails immediately with
+  `Command "ts-mocha" not found`, because of the separate-package issue
+  above.
+- Even with that fixed, a bare `anchor test` is unsafe as written:
+  `Anchor.toml`'s `[provider] cluster = "Devnet"` means `anchor test`
+  without `--provider.cluster localnet` skips the local validator and
+  tries to deploy straight to real devnet.
+
+`./scripts/test-local.sh` builds both programs (`verifibet` with
+`--features test-mock-txline`, so `resolve_market`'s CPI targets a local
+mock instead of real TxLINE) and runs the suite against a local validator.
+Verified output on a fresh clone:
+
+```
+  verifibet
+    initialize_market
+      ✔ init happy: all fields set, vault ATA owned by the market PDA
+      ✔ init past kickoff fails with KickoffPassed
+    place_bet
+      ✔ two users x two outcomes: pools and vault balance are exact
+      ✔ re-betting the same outcome accumulates into the same Bet PDA
+      ✔ outcome 3 fails with InvalidOutcome
+      ✔ a token account for the wrong mint fails with MintMismatch
+      ✔ betting after kickoff fails with KickoffPassed
+    resolve_market guards
+      ✔ resolve by a non-authority signer fails with Unauthorized
+      ✔ resolve before kickoff fails with KickoffNotPassed
+    resolve + claim lifecycle
+      ✔ resolving with a forced mock-CPI failure reverts and leaves the market unresolved
+      ✔ resolves happily via the mock CPI
+      ✔ winner claim pays out the exact BigInt-computed share
+      ✔ double claim fails with AlreadyClaimed
+      ✔ a losing bet fails to claim with NotWinningBet
+      ✔ claim_refund on a Resolved (never voided) market fails with MarketNotVoided
+    void + refund lifecycle
+      ✔ voiding before the grace window elapses fails with TooEarlyToVoid
+      ✔ claim_refund before the market is voided (still Open) fails with MarketNotVoided
+      ✔ void + refund returns every bettor's exact stake
+      ✔ double refund fails with AlreadyClaimed
+      ✔ claim_winnings on a Voided market fails with MarketNotResolved
+    conservation
+      ✔ after every winner claims, the vault holds less than one unit of dust per winner
+      ✔ void + refund: 3 users x 2 outcomes drains the vault to exactly 0, no dust
+
+  22 passing (44s)
+```
+
+Needs `anchor-cli` 0.30.1, `solana-cli` 1.18.x, and the `v1.52`
+platform-tools toolchain already on `PATH` — see `CLAUDE.md`'s "Known
+toolchain issue" section if `anchor build`'s own IDL step ever needs
+touching directly; `test-local.sh` already routes around it.
+
+## Reproduce the demo environment
+
+Populate a live, walkable demo of the deployed program with one command —
+real markets, real varied bets, real settled receipts:
 
 ```bash
 cp .env.local.example .env.local   # fill in KEEPER_SECRET_KEY, TXLINE_*, etc.
@@ -93,83 +159,83 @@ pnpm install
 pnpm seed:demo
 ```
 
-This is `scripts/seed-demo.ts`, idempotent (safe to re-run — it skips
-whatever already exists rather than duplicating it):
+`scripts/seed-demo.ts` (idempotent — safe to re-run):
 
-1. **Creates five on-chain markets** in the "demo range" (`+9,000,000`
-   fixture ids — see `lib/txline/demoScenarios.ts`), one per demo
-   scenario (`pens`, `qf-thriller`, `underdog`, `late-drama`,
-   `final-preview` — see `demo-data/scenarios/`), so the on-chain betting
-   flow and the `DEMO_MODE=1` replay pill narrate the exact same five
-   matches.
-2. **Places ~20 varied bets** on them from three deterministic, publicly
-   re-derivable devnet wallets (`demo-alice`/`demo-bob`/`demo-carol` — see
-   `scripts/seed-bets.ts`'s own doc comment for the exact seed), so
-   `/leaderboard` has real, distinguishable activity instead of looking
-   empty.
-3. **Resolves two real fixtures** (not demo-range ones — `resolve_market`'s
+1. Creates five on-chain markets in a reserved demo fixture-id range, one
+   per demo scenario (`pens`, `qf-thriller`, `underdog`, `late-drama`,
+   `final-preview` — see `demo-data/scenarios/`).
+2. Places ~20 varied bets from three deterministic, publicly re-derivable
+   devnet wallets, so the leaderboard has real, distinguishable activity.
+3. Resolves two **real** fixtures (not demo-range ones — `resolve_market`'s
    CPI only ever succeeds against TxLINE's genuine on-chain data) through
-   the exact same backfill path `pnpm keeper:resolve --fixture <id>` uses,
-   so `/portfolio` and `/receipts/<fixtureId>` have real, Merkle-proof-
-   verified settled content, not just open markets.
-4. **Leaves exactly one unclaimed winning bet** on the presenter/dev
-   wallet, discovered and enforced by directly scanning that wallet's
-   real on-chain `Bet` accounts (`scripts/demoRig.ts`) — not a hardcoded
-   assumption about what should be there.
+   the same backfill path `pnpm keeper:resolve --fixture <id>` uses, so
+   `/portfolio` and `/receipts/<fixtureId>` have real, Merkle-verified
+   settled content.
+4. Leaves exactly one unclaimed winning bet on the presenter/dev wallet.
+   `pnpm reset:demo` re-arms it between takes.
 
-Between recorded takes, `pnpm reset:demo` re-arms that one claimable win
-if a take actually claimed it — fabricating a fresh one honestly (a real,
-historical, already-decided World Cup fixture, bet on the side that
-already won, resolved through the same real backfill path) rather than
-faking an outcome.
+Two known, deliberate gaps (both confirmed live, documented in
+`scripts/seed-demo.ts`'s own doc comment): `pens`'s real fixture (Germany
+v Paraguay) is permanently unresolvable through the real CPI — it was
+decided on penalties, and the CPI only ever proves an FT+ET goal
+difference, with no on-chain representation of a shootout at all; its
+market stays `Open` rather than being resolved dishonestly.
+`late-drama`'s real fixture hits a reproducible TxLINE-side devnet
+`TimestampMismatch`, outside this program's control.
 
-**Two known, deliberate gaps** — both confirmed live, not theoretical,
-documented in `scripts/seed-demo.ts`'s own doc comment:
+To record a live, on-camera take of the full click path (place a bet →
+kickoff → goal → full-time → auto-resolve → claim → receipt), see
+`DEMO_RUNBOOK.md`.
 
-- `pens`'s real fixture (Germany v Paraguay) is **permanently
-  unresolvable** through `resolve_market`'s real CPI — it was decided on
-  penalties, and the CPI only ever proves an FT+ET goal difference, with
-  no on-chain representation of a shootout at all (see
-  `resolve_market.rs`'s module doc comment). Submitting the real winner
-  would fail the proof's own predicate; `resolveFixtureInner` correctly
-  refuses rather than resolving dishonestly. Its market stays `Open`.
-- `late-drama`'s real fixture (Argentina v Cape Verde) hits a
-  reproducible `TimestampMismatch` from TxLINE's own `validate_stat` CPI
-  — looks like a TxLINE-side devnet data issue outside this program's
-  control (an otherwise-identical resolution against a different fixture
-  succeeds cleanly). Its market also stays `Open`.
+## Stack
 
-## Getting Started
+- **Frontend** — Next.js 14 (App Router), React 18, Tailwind CSS +
+  Radix-based primitives, Framer Motion, next-themes
+- **Chain** — Anchor 0.30.1 on Solana (devnet), `@solana/web3.js`,
+  `@solana/spl-token`, wallet-adapter (Phantom, Solflare)
+- **Data** — TxLINE (TxODDS) REST + SSE, Zod-validated at every boundary
+- **Infra** — Vercel (app + `app/api/*` TxLINE proxy), Upstash Redis
+  (response caching + keeper coordination), pino (structured logs),
+  Telegram alerts on keeper failure
+- **Testing** — Vitest (TypeScript), Anchor's mocha/chai harness (Rust
+  program, 22 tests), `tsx` for CLI scripts
 
-First, run the development server:
+## Devnet, by design
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+The hackathon's own rules accept "a functional build or live testnet
+application" — devnet clears that outright. Two independent reasons,
+either sufficient alone: **cost** (this program's `Market`/`Bet` PDA rent
+is real, non-refundable SOL for a judged build that never needs to hold
+real value), and **regulatory** (built solo from India, where real-money
+online gaming is heavily restricted — devnet sidesteps that question
+entirely rather than relying on a legal read of where a hackathon
+submission falls). Neither reason caps the architecture: `lib/config.ts`
+already carries TxLINE's real mainnet addresses side-by-side with the
+devnet ones this deploy uses — flipping `NEXT_PUBLIC_CLUSTER`, deploying
+`verifibet` to mainnet, and pointing at real USDC is the entire migration.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Hackathon
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Built for TxODDS's **"Prediction Markets and Settlement"** hackathon
+(judging window 2026-07-20 – 2026-07-29). Built **solo**.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+What TxLINE actually powers, end to end — not just "integrated with," but
+the specific surfaces this program depends on for every real feature (full
+detail + file locations in
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §3):
 
-## Learn More
+| TxLINE surface | What it powers here |
+|---|---|
+| **Fixtures** (`/api/fixtures/snapshot`) | Tournament schedule — every market this app can create |
+| **Odds** (`/api/odds/snapshot/{fixtureId}`) | Live pricing on the bet slip |
+| **Scores** (`/api/scores/snapshot/{fixtureId}`) | The keeper's finality signal — when a fixture is stably `FINISHED` |
+| **Proofs** (`/api/scores/stat-validation`) | The 3-level Merkle proof material `resolve_market`'s CPI needs |
+| **CPI** (`validate_stat`, called from `resolve_market`) | The *only* way a market can ever be marked `Resolved` — see §2/§7 |
+| **Stream** (`odds/stream`, `scores/stream`, SSE) | Live odds ticks and score/status updates in the UI |
 
-To learn more about Next.js, take a look at the following resources:
+No mock settlement path ships in the default build — `resolve_market`
+either gets a real TxLINE-verified proof or the market stays unresolved.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## License
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+[MIT](LICENSE)
