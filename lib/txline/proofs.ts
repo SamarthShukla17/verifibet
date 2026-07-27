@@ -167,12 +167,22 @@ const PROOFS_DIR = join(process.cwd(), "proofs");
 
 /** `proofs/<fixtureId>.json`, gitignored — the keeper reads straight from
  * disk at resolve time rather than re-fetching over the network, since a
- * finished fixture's proof never changes (see `PROOF_TTL_SECONDS`). */
+ * finished fixture's proof never changes (see `PROOF_TTL_SECONDS`). Purely
+ * a convenience cache for callers with a normal, writable filesystem (the
+ * keeper, `scripts/fetch-proof.ts`) — `fetchProof` itself is also called
+ * from `app/api/receipts/[fixtureId]/route.ts`, which runs as a Vercel
+ * serverless function where everything outside `/tmp` is read-only, so a
+ * write failure here is swallowed (logged, not thrown) rather than taking
+ * down a request that already has its real answer in `proof`. */
 function persistLocally(proof: NormalizedProof): void {
-  mkdirSync(PROOFS_DIR, { recursive: true });
-  const path = join(PROOFS_DIR, `${proof.fixtureId}.json`);
-  writeFileSync(path, JSON.stringify(proof, null, 2) + "\n");
-  console.log(`[proofs] wrote ${path}`);
+  try {
+    mkdirSync(PROOFS_DIR, { recursive: true });
+    const path = join(PROOFS_DIR, `${proof.fixtureId}.json`);
+    writeFileSync(path, JSON.stringify(proof, null, 2) + "\n");
+    console.log(`[proofs] wrote ${path}`);
+  } catch (err) {
+    console.warn(`[proofs] couldn't persist fixture ${proof.fixtureId} to disk (read-only filesystem?) — continuing without it`, err);
+  }
 }
 
 /**
