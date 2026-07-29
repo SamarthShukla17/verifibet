@@ -322,5 +322,5 @@ than guessed:
 
 ## Session rule
 
-Every session ends with a commit and a 30-second screen recording dropped
+Every session ends with a 30-second screen recording dropped
 into `demo-assets/`.
